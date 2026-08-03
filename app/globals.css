@@ -1,26 +1,500 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* ==========================================================================
+   Jamaali — design tokens
+   Two surfaces carry the whole product: warm ivory "paper" for managing the
+   catalogue, and deep emerald "studio" for designing what goes out. Gold is an
+   accent only — hairlines, marks, one price — never a large fill.
+   ========================================================================== */
+
+@theme {
+  /* Emerald — the house colour */
+  --color-emerald-950: #071c16;
+  --color-emerald-900: #0b2b21;
+  --color-emerald-800: #0f4436;
+  --color-emerald-700: #186049;
+  --color-emerald-600: #237b5e;
+  --color-emerald-500: #2f9a76;
+
+  /* Gold — accent, used sparingly */
+  --color-gold-700: #8a6d34;
+  --color-gold-500: #b8944d;
+  --color-gold-300: #e3c88a;
+  --color-gold-100: #f3e4bc;
+
+  /* Warm neutrals — the paper the catalogue is printed on */
+  --color-sand-50: #fbf8f2;
+  --color-sand-100: #f4efe4;
+  --color-sand-200: #e4dccb;
+  --color-sand-300: #cfc5af;
+  --color-sand-500: #8b9189;
+  --color-sand-600: #6f7a72;
+  --color-sand-900: #1c2320;
+
+  --color-danger: #9b3535;
+  --color-danger-soft: #fbeeee;
+  --color-success: #2f7d57;
+  --color-success-soft: #ecf6f0;
+
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1.125rem;
+  --radius-xl: 1.625rem;
+
+  /* Warm-tinted shadows; neutral grey shadows look dirty on ivory. */
+  --shadow-plate: 0 1px 2px rgb(28 35 32 / 0.04), 0 8px 24px -12px rgb(15 68 54 / 0.14);
+  --shadow-lift: 0 2px 4px rgb(28 35 32 / 0.05), 0 18px 40px -18px rgb(15 68 54 / 0.28);
+  --shadow-studio: 0 30px 80px -30px rgb(7 28 22 / 0.75);
+
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-display: var(--font-cormorant), Georgia, "Times New Roman", serif;
+  --font-ui: var(--font-inter), system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* ==========================================================================
+   Base
+   ========================================================================== */
+
+@layer base {
+  * {
+    min-width: 0; /* stops long codes forcing flex/grid children to overflow */
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    scrollbar-gutter: stable;
+  }
+
+  body {
+    background: var(--color-sand-50);
+    color: var(--color-sand-900);
+    font-family: var(--font-ui);
+    /* A barely-there emerald wash so white cards read as raised. */
+    background-image: radial-gradient(
+      120rem 60rem at 50% -20rem,
+      rgb(35 123 94 / 0.07),
+      transparent 65%
+    );
+    background-attachment: fixed;
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+  }
+
+  /* Visible only for keyboard users, but unmistakable when it is. */
+  :focus-visible {
+    outline: 2px solid var(--color-emerald-700);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+  }
+
+  ::selection {
+    background: var(--color-gold-300);
+    color: var(--color-emerald-950);
+  }
+
+  /* Number inputs: the spinners are useless on a rate sheet. */
+  input[type="number"] {
+    -moz-appearance: textfield;
+  }
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* ==========================================================================
+   Components — the handful of patterns that repeat everywhere.
+   Keeping them here rather than as utility soup in JSX is what makes the
+   markup readable and the look consistent.
+   ========================================================================== */
+
+@layer components {
+  /* --- typography ------------------------------------------------------ */
+
+  .wordmark {
+    font-family: var(--font-display);
+    font-weight: 600;
+    letter-spacing: 0.34em;
+    text-indent: 0.34em; /* re-centres text that trailing tracking pushed left */
+  }
+
+  .eyebrow {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--color-sand-600);
+  }
+
+  .numeric {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* --- surfaces -------------------------------------------------------- */
+
+  .plate {
+    background: #fff;
+    border: 1px solid var(--color-sand-200);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-plate);
+  }
+
+  .studio {
+    background:
+      radial-gradient(60rem 40rem at 50% 0%, rgb(35 123 94 / 0.28), transparent 70%),
+      linear-gradient(180deg, var(--color-emerald-900), var(--color-emerald-950));
+    color: var(--color-sand-50);
+    border: 1px solid rgb(227 200 138 / 0.18);
+    border-radius: var(--radius-xl);
+  }
+
+  /* A 1px gold rule that fades at both ends — the brand's separator. */
+  .rule-gold {
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      var(--color-gold-300) 22%,
+      var(--color-gold-500) 50%,
+      var(--color-gold-300) 78%,
+      transparent
+    );
+  }
+
+  /* --- buttons --------------------------------------------------------- */
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.625rem 1rem;
+    border-radius: var(--radius-md);
+    border: 1px solid transparent;
+    font-size: 0.875rem;
+    font-weight: 600;
+    line-height: 1.2;
+    white-space: nowrap;
+    cursor: pointer;
+    transition:
+      background-color 0.18s var(--ease-out-soft),
+      border-color 0.18s var(--ease-out-soft),
+      color 0.18s var(--ease-out-soft),
+      transform 0.18s var(--ease-out-soft),
+      box-shadow 0.18s var(--ease-out-soft);
+  }
+  .btn:active:not(:disabled) {
+    transform: translateY(1px);
+  }
+  .btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .btn-primary {
+    background: var(--color-emerald-800);
+    color: var(--color-sand-50);
+    box-shadow: var(--shadow-plate);
+  }
+  .btn-primary:hover:not(:disabled) {
+    background: var(--color-emerald-700);
+    box-shadow: var(--shadow-lift);
+  }
+
+  .btn-gold {
+    background: linear-gradient(140deg, var(--color-gold-300), var(--color-gold-500));
+    color: var(--color-emerald-950);
+  }
+  .btn-gold:hover:not(:disabled) {
+    background: linear-gradient(140deg, var(--color-gold-100), var(--color-gold-500));
+  }
+
+  .btn-quiet {
+    background: #fff;
+    border-color: var(--color-sand-200);
+    color: var(--color-sand-900);
+  }
+  .btn-quiet:hover:not(:disabled) {
+    border-color: var(--color-emerald-700);
+    color: var(--color-emerald-800);
+  }
+
+  .btn-ghost {
+    background: transparent;
+    color: var(--color-sand-600);
+  }
+  .btn-ghost:hover:not(:disabled) {
+    background: var(--color-sand-100);
+    color: var(--color-sand-900);
+  }
+
+  .btn-danger {
+    background: transparent;
+    border-color: transparent;
+    color: var(--color-danger);
+  }
+  .btn-danger:hover:not(:disabled) {
+    background: var(--color-danger-soft);
+  }
+
+  .btn-sm {
+    padding: 0.4375rem 0.75rem;
+    font-size: 0.8125rem;
+  }
+
+  /* Buttons sitting on the dark studio surface */
+  .btn-on-dark {
+    background: rgb(251 248 242 / 0.08);
+    border-color: rgb(227 200 138 / 0.28);
+    color: var(--color-sand-50);
+  }
+  .btn-on-dark:hover:not(:disabled) {
+    background: rgb(251 248 242 / 0.16);
+    border-color: var(--color-gold-300);
+  }
+
+  /* --- form controls --------------------------------------------------- */
+
+  .field-label {
+    display: block;
+    margin-bottom: 0.375rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-emerald-800);
+  }
+
+  .input {
+    width: 100%;
+    padding: 0.6875rem 0.875rem;
+    background: #fff;
+    border: 1px solid var(--color-sand-200);
+    border-radius: var(--radius-md);
+    /* 16px minimum, otherwise iOS Safari zooms the page on focus. */
+    font-size: 1rem;
+    font-family: inherit;
+    color: inherit;
+    transition:
+      border-color 0.18s var(--ease-out-soft),
+      box-shadow 0.18s var(--ease-out-soft);
+  }
+  .input::placeholder {
+    color: var(--color-sand-300);
+  }
+  .input:hover {
+    border-color: var(--color-sand-300);
+  }
+  .input:focus {
+    outline: none;
+    border-color: var(--color-emerald-700);
+    box-shadow: 0 0 0 3px rgb(24 96 73 / 0.12);
+  }
+  .input[aria-invalid="true"] {
+    border-color: var(--color-danger);
+  }
+  .input[aria-invalid="true"]:focus {
+    box-shadow: 0 0 0 3px rgb(155 53 53 / 0.12);
+  }
+
+  select.input {
+    appearance: none;
+    padding-right: 2.5rem;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8' fill='none'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%236F7A72' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.875rem center;
+  }
+
+  /* Segmented control: a row of choices that reads as one object. */
+  .segment {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    padding: 0.25rem;
+    background: var(--color-sand-100);
+    border: 1px solid var(--color-sand-200);
+    border-radius: var(--radius-md);
+  }
+  .segment-option {
+    flex: 1 1 auto;
+    min-width: 4.5rem;
+    padding: 0.5rem 0.625rem;
+    border-radius: calc(var(--radius-md) - 0.25rem);
+    background: transparent;
+    border: none;
+    font: inherit;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--color-sand-600);
+    cursor: pointer;
+    transition:
+      background-color 0.18s var(--ease-out-soft),
+      color 0.18s var(--ease-out-soft),
+      box-shadow 0.18s var(--ease-out-soft);
+  }
+  .segment-option:hover {
+    color: var(--color-sand-900);
+  }
+  .segment-option[aria-checked="true"] {
+    background: #fff;
+    color: var(--color-emerald-800);
+    font-weight: 600;
+    box-shadow: var(--shadow-plate);
+  }
+
+  .segment-dark {
+    background: rgb(7 28 22 / 0.45);
+    border-color: rgb(227 200 138 / 0.18);
+  }
+  .segment-dark .segment-option {
+    color: rgb(251 248 242 / 0.6);
+  }
+  .segment-dark .segment-option:hover {
+    color: var(--color-sand-50);
+  }
+  .segment-dark .segment-option[aria-checked="true"] {
+    background: rgb(227 200 138 / 0.92);
+    color: var(--color-emerald-950);
+    box-shadow: none;
+  }
+
+  /* --- badges ---------------------------------------------------------- */
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.1875rem 0.5rem;
+    border-radius: 999px;
+    border: 1px solid transparent;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+  }
+  .badge-emerald {
+    background: rgb(15 68 54 / 0.08);
+    border-color: rgb(15 68 54 / 0.16);
+    color: var(--color-emerald-800);
+  }
+  .badge-gold {
+    background: rgb(184 148 77 / 0.12);
+    border-color: rgb(184 148 77 / 0.28);
+    color: var(--color-gold-700);
+  }
+  .badge-danger {
+    background: var(--color-danger-soft);
+    border-color: rgb(155 53 53 / 0.2);
+    color: var(--color-danger);
+  }
+  .badge-success {
+    background: var(--color-success-soft);
+    border-color: rgb(47 125 87 / 0.2);
+    color: var(--color-success);
+  }
+
+  /* --- chips (filters) ------------------------------------------------- */
+
+  .chip {
+    padding: 0.375rem 0.75rem;
+    border-radius: 999px;
+    border: 1px solid var(--color-sand-200);
+    background: #fff;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--color-sand-600);
+    cursor: pointer;
+    transition:
+      border-color 0.18s var(--ease-out-soft),
+      background-color 0.18s var(--ease-out-soft),
+      color 0.18s var(--ease-out-soft);
+  }
+  .chip:hover {
+    border-color: var(--color-sand-300);
+    color: var(--color-sand-900);
+  }
+  .chip[aria-pressed="true"] {
+    background: var(--color-emerald-800);
+    border-color: var(--color-emerald-800);
+    color: var(--color-sand-50);
+  }
+}
+
+/* ==========================================================================
+   Motion — every animation is opt-out via prefers-reduced-motion.
+   ========================================================================== */
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(0.5rem);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 1rem) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+}
+
+@keyframes shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@utility animate-rise {
+  animation: rise 0.4s var(--ease-out-soft) both;
+}
+
+@utility animate-toast {
+  animation: toast-in 0.32s var(--ease-out-soft) both;
+}
+
+@utility skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--color-sand-100) 25%,
+    var(--color-sand-200) 37%,
+    var(--color-sand-100) 63%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.4s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
 }
