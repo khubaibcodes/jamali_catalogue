@@ -28,11 +28,25 @@ const NATIVE_TRACKING = (() => {
   }
 })();
 
-/** Width of `text` in the current font, including manual tracking. */
+/**
+ * Width of `text` in the current font, including tracking.
+ *
+ * This applies the spacing itself rather than trusting the context to already
+ * carry it. Measuring a tracked string without doing so under-reports its width
+ * by `tracking × (length - 1)` — enough to let a long line sail past a
+ * shrink-to-fit budget and overflow the card.
+ */
 export function measure(ctx: CanvasRenderingContext2D, text: string, tracking = 0): number {
-  const base = ctx.measureText(text).width;
-  if (!tracking || NATIVE_TRACKING) return base;
-  return base + tracking * Math.max(0, text.length - 1);
+  if (!tracking) return ctx.measureText(text).width;
+
+  if (NATIVE_TRACKING) {
+    const previous = ctx.letterSpacing;
+    ctx.letterSpacing = `${tracking}px`;
+    const width = ctx.measureText(text).width;
+    ctx.letterSpacing = previous;
+    return width;
+  }
+  return ctx.measureText(text).width + tracking * Math.max(0, text.length - 1);
 }
 
 /** Draws one line of text with optional letter-spacing. Returns its width. */
