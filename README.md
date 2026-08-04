@@ -17,6 +17,50 @@ Then open http://localhost:3000.
 
 ---
 
+## Putting it on a phone and a desktop
+
+`npm run build` produces a **static site** in `out/` — plain HTML, CSS and JS
+with no Node process behind it. Upload that folder anywhere that serves files
+and you get one URL that works on every device.
+
+```bash
+npm run build     # writes ./out
+npm run serve     # preview ./out at http://localhost:4000
+```
+
+Any static host works: Vercel, Netlify, Cloudflare Pages, GitHub Pages, or a
+folder on your own hosting.
+
+**Host it over HTTPS.** Two features need a secure context, and both are the
+reason you'd use this on a phone:
+
+| | HTTPS | Plain `http://` |
+| --- | --- | --- |
+| Share a card straight to WhatsApp / Instagram | works | falls back to downloading the PNG |
+| Copy a reply to the clipboard | modern API | older fallback, still works |
+
+`localhost` counts as secure; a LAN address like `http://192.168.1.5:3000` does
+not. So testing over Wi-Fi is fine, but real phone use wants a hosted HTTPS URL.
+
+Once it's hosted, open it on the phone and choose **Add to Home Screen**. It
+installs via `app/manifest.ts` and opens full-screen without browser chrome.
+
+> Assets are referenced from the site root, so host it at the root of a domain
+> or subdomain. To serve it from a subfolder instead, set `basePath` in
+> `next.config.ts`.
+
+### The catch: each device has its own catalogue
+
+Hosting gives every device the same *app*, not the same *data*. Articles live in
+each browser's IndexedDB, so the phone and the desktop keep separate
+catalogues.
+
+Pick one device as the master. To copy the catalogue to another device, use
+**Download a backup** on the first and **Restore from a backup** on the second.
+Restoring replaces everything on that device, so it's a copy, not a merge.
+
+---
+
 ## The three screens
 
 | Screen        | What it's for                                                          |
@@ -124,6 +168,6 @@ cannot be restored from.
 
 ```bash
 npm run build
-npx tsc --noEmit
-npx eslint .
+npm run typecheck
+npm run lint
 ```

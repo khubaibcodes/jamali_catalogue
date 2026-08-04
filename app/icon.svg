@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="112" fill="#0F4436" />
+  <rect x="46" y="46" width="420" height="420" rx="78" fill="none" stroke="#B8944D" stroke-width="6" />
+  <path d="M256 118 l14 44 h46 l-37 27 14 44 -37 -27 -37 27 14 -44 -37 -27 h46 z" fill="#E3C88A" opacity="0.9" />
+  <text x="256" y="330" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif"
+        font-size="150" font-weight="600" fill="#FBF8F2" letter-spacing="4">J</text>
+  <path d="M170 372 h172" stroke="#B8944D" stroke-width="5" stroke-linecap="round" />
+</svg>
