@@ -27,7 +27,8 @@ export const metadata: Metadata = {
   description:
     "Manage the Jamaali article catalogue, keep retail, reseller and wholesale rates in one place, and export ready-to-post cards for WhatsApp and Instagram.",
   applicationName: brand.name,
-  robots: { index: false, follow: false }, // an internal tool, not a shopfront
+  // The shopfront wants to be found; /admin and /login opt out individually.
+  robots: { index: true, follow: true },
   // Lets iOS open it full-screen once it's added to the home screen.
   appleWebApp: { capable: true, title: brand.name, statusBarStyle: "black-translucent" },
 };

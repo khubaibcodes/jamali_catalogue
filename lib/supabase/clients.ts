@@ -7,6 +7,7 @@
  * client asks for.
  */
 
+import { createClient } from "@supabase/supabase-js";
 import { createBrowserClient, createServerClient } from "@supabase/ssr";
 import type { Database } from "./database.types";
 
@@ -19,6 +20,27 @@ function config() {
     );
   }
   return { url, key };
+}
+
+/**
+ * For the public shopfront. Deliberately ignores cookies.
+ *
+ * Two reasons, both learned the hard way:
+ *
+ *  1. A stale or invalid session cookie — a signed-out staff member, a deleted
+ *     account, an expired token — makes Postgrest reject the request, and the
+ *     catalogue renders completely empty for that visitor.
+ *  2. Reading cookies makes the response vary per visitor, which is at odds
+ *     with caching a page that is identical for everyone.
+ *
+ * Public pages only ever show published rows, so there is nothing a session
+ * could usefully add.
+ */
+export function anonClient() {
+  const { url, key } = config();
+  return createClient<Database>(url, key, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
 }
 
 /** For client components. Reads and writes the session cookie. */
