@@ -1,27 +1,37 @@
 "use client";
 
 /**
- * The single owner of catalogue state. Every mutation writes to IndexedDB first
- * and only updates React state once that succeeds, so what's on screen always
- * matches what's on disk.
+ * The single owner of catalogue state, now backed by Supabase.
+ *
+ * Every mutation writes to the database first and only then updates React
+ * state, so what's on screen always matches what's stored. The client is
+ * created once per mount — a new one on every render would tear down and
+ * rebuild the auth listener each time.
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { newId } from "@/lib/backup";
-import * as store from "@/lib/storage";
-import type { Product, ProductDraft } from "@/lib/types";
+import * as repo from "@/lib/repository";
+import { deletePhotoFiles, uploadPhoto } from "@/lib/photos";
+import { browserClient } from "@/lib/supabase/clients";
+import type { Product, ProductDraft, Session } from "@/lib/types";
 
 export type LoadState = "loading" | "ready" | "error";
 
-export function useProducts() {
+export function useProducts(session: Session) {
+  const supabase = useMemo(() => browserClient(), []);
   const [products, setProducts] = useState<Product[]>([]);
   const [state, setState] = useState<LoadState>("loading");
   const [error, setError] = useState<string | null>(null);
 
+  const reload = useCallback(async () => {
+    const rows = await repo.fetchProducts(supabase);
+    setProducts(rows);
+  }, [supabase]);
+
   useEffect(() => {
     let cancelled = false;
-    store
-      .readAll()
+    repo
+      .fetchProducts(supabase)
       .then((rows) => {
         if (cancelled) return;
         setProducts(rows);
@@ -35,97 +45,143 @@ export function useProducts() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [supabase]);
 
-  const upsert = useCallback(async (draft: ProductDraft, id?: string): Promise<Product> => {
-    const now = Date.now();
-    const existing = id ? products.find((p) => p.id === id) : undefined;
-    const product: Product = {
-      ...draft,
-      code: draft.code.trim().toUpperCase(),
-      id: id ?? newId(),
-      createdAt: existing?.createdAt ?? now,
-      updatedAt: now,
-    };
-    await store.write(product);
-    setProducts((prev) => [...prev.filter((p) => p.id !== product.id), product].sort(store.byCode));
-    return product;
-    // `products` is read only to preserve createdAt; a stale read is harmless.
-  }, [products]);
-
-  const duplicate = useCallback(async (source: Product): Promise<Product> => {
-    const now = Date.now();
-    const copy: Product = {
-      ...source,
-      id: newId(),
-      code: nextFreeCode(source.code, products),
-      createdAt: now,
-      updatedAt: now,
-    };
-    await store.write(copy);
-    setProducts((prev) => [...prev, copy].sort(store.byCode));
-    return copy;
-  }, [products]);
-
-  const remove = useCallback(async (id: string): Promise<void> => {
-    await store.remove(id);
-    setProducts((prev) => prev.filter((p) => p.id !== id));
-  }, []);
-
-  const restore = useCallback(async (rows: Product[]): Promise<void> => {
-    await store.replaceAll(rows);
-    setProducts([...rows].sort(store.byCode));
-  }, []);
-
-  /** Codes must stay unique — they're what a customer quotes when ordering. */
-  const isCodeTaken = useCallback(
-    (code: string, exceptId?: string) => {
-      const target = code.trim().toUpperCase();
-      return products.some((p) => p.code === target && p.id !== exceptId);
+  const upsert = useCallback(
+    async (draft: ProductDraft, id?: string): Promise<Product> => {
+      const saved = await repo.saveProduct(supabase, draft, id, session.canSeeTradeRates);
+      setProducts((prev) =>
+        [...prev.filter((p) => p.id !== saved.id), saved].sort(byCode),
+      );
+      return saved;
     },
-    [products],
+    [supabase, session.canSeeTradeRates],
   );
 
-  const categories = useMemo(
-    () => unique(products.map((p) => p.category)),
-    [products],
+  const duplicate = useCallback(
+    async (source: Product): Promise<Product> => {
+      const copy = await repo.saveProduct(
+        supabase,
+        {
+          ...source,
+          code: nextFreeCode(source.code, products),
+          // Photos belong to the original; the copy starts without them rather
+          // than silently sharing files that a later delete would pull away.
+          photos: [],
+          published: false,
+        },
+        undefined,
+        session.canSeeTradeRates,
+      );
+      setProducts((prev) => [...prev, copy].sort(byCode));
+      return copy;
+    },
+    [supabase, products, session.canSeeTradeRates],
   );
-  const collections = useMemo(
-    () => unique(products.map((p) => p.collection)),
-    [products],
+
+  const remove = useCallback(
+    async (product: Product): Promise<void> => {
+      await repo.deleteProduct(supabase, product.id);
+      // Files are not cascaded by the database, so clear them separately.
+      await deletePhotoFiles(supabase, product.photos.map((p) => p.path));
+      setProducts((prev) => prev.filter((p) => p.id !== product.id));
+    },
+    [supabase],
   );
+
+  const addPhoto = useCallback(
+    async (product: Product, file: File): Promise<Product> => {
+      const path = await uploadPhoto(supabase, product.code, file);
+      const row = await repo.addPhotoRow(supabase, product.id, path, product.photos.length);
+      const updated: Product = {
+        ...product,
+        photos: [...product.photos, { id: row.id, path, url: photoUrl(path) }],
+      };
+      setProducts((prev) => prev.map((p) => (p.id === product.id ? updated : p)));
+      return updated;
+    },
+    [supabase],
+  );
+
+  const removePhoto = useCallback(
+    async (product: Product, photoId: string): Promise<Product> => {
+      const photo = product.photos.find((p) => p.id === photoId);
+      if (!photo) return product;
+      await repo.removePhotoRow(supabase, photoId);
+      await deletePhotoFiles(supabase, [photo.path]);
+      const remaining = product.photos.filter((p) => p.id !== photoId);
+      await repo.savePhotoOrder(supabase, product.id, remaining.map((p) => p.id));
+      const updated = { ...product, photos: remaining };
+      setProducts((prev) => prev.map((p) => (p.id === product.id ? updated : p)));
+      return updated;
+    },
+    [supabase],
+  );
+
+  const makeCover = useCallback(
+    async (product: Product, photoId: string): Promise<Product> => {
+      const picked = product.photos.find((p) => p.id === photoId);
+      if (!picked) return product;
+      const reordered = [picked, ...product.photos.filter((p) => p.id !== photoId)];
+      await repo.savePhotoOrder(supabase, product.id, reordered.map((p) => p.id));
+      const updated = { ...product, photos: reordered };
+      setProducts((prev) => prev.map((p) => (p.id === product.id ? updated : p)));
+      return updated;
+    },
+    [supabase],
+  );
+
+  const codeTaken = useCallback(
+    (code: string, exceptId?: string) => repo.isCodeTaken(supabase, code, exceptId),
+    [supabase],
+  );
+
+  const categories = useMemo(() => unique(products.map((p) => p.category)), [products]);
+  const collections = useMemo(() => unique(products.map((p) => p.collection)), [products]);
 
   return {
+    supabase,
     products,
     state,
     error,
     categories,
     collections,
+    reload,
     upsert,
     duplicate,
     remove,
-    restore,
-    isCodeTaken,
+    addPhoto,
+    removePhoto,
+    makeCover,
+    codeTaken,
   };
 }
+
+/* ----------------------------------------------------------------- helpers */
+
+const byCode = (a: Product, b: Product) =>
+  a.code.localeCompare(b.code, "en", { numeric: true });
+
+const photoUrl = (path: string) =>
+  `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/product-photos/${path}`;
 
 const unique = (values: string[]): string[] =>
   [...new Set(values.map((v) => v.trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
 
 /** `JM-101` → `JM-102` when free, otherwise `JM-101 COPY 2`. */
 function nextFreeCode(code: string, products: Product[]): string {
-  const taken = new Set(products.map((p) => p.code));
+  const taken = new Set(products.map((p) => p.code.toUpperCase()));
   const match = code.match(/^(.*?)(\d+)$/);
 
   if (match) {
     const [, stem, digits] = match;
     for (let n = Number(digits) + 1; n < Number(digits) + 100; n++) {
       const candidate = `${stem}${String(n).padStart(digits.length, "0")}`;
-      if (!taken.has(candidate)) return candidate;
+      if (!taken.has(candidate.toUpperCase())) return candidate;
     }
   }
   for (let n = 2; ; n++) {
     const candidate = `${code} COPY ${n}`;
-    if (!taken.has(candidate)) return candidate;
+    if (!taken.has(candidate.toUpperCase())) return candidate;
   }
 }

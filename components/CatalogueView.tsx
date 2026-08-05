@@ -9,7 +9,7 @@
 import { useMemo, useState } from "react";
 import { joinParts, money, timeAgo } from "@/lib/format";
 import { copy, rateList, replyFor } from "@/lib/whatsapp";
-import { TIERS, type Product, type Status, type Tier } from "@/lib/types";
+import { TIERS, type Product, type Session, type Status, type Tier } from "@/lib/types";
 import { EmptyState } from "./ui/controls";
 import { Icon } from "./ui/Icon";
 
@@ -37,6 +37,7 @@ const STATUS_BADGE: Record<Status, string> = {
 
 export function CatalogueView({
   products,
+  session,
   categories,
   collections,
   onEdit,
@@ -47,6 +48,7 @@ export function CatalogueView({
   onNotify,
 }: {
   products: Product[];
+  session: Session;
   categories: string[];
   collections: string[];
   onEdit: (product: Product) => void;
@@ -60,7 +62,9 @@ export function CatalogueView({
   const [category, setCategory] = useState("All");
   const [collection, setCollection] = useState("All");
   const [sort, setSort] = useState<SortKey>("code");
-  const [tier, setTier] = useState<Tier>("reseller");
+  // Staff have no trade rates to show, so retail is the only meaningful column.
+  const tiers = session.canSeeTradeRates ? TIERS : (["retail"] as const);
+  const [tier, setTier] = useState<Tier>(session.canSeeTradeRates ? "reseller" : "retail");
 
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -186,7 +190,7 @@ export function CatalogueView({
             value={tier}
             onChange={(e) => setTier(e.target.value as Tier)}
           >
-            {TIERS.map((t) => (
+            {tiers.map((t) => (
               <option key={t} value={t}>
                 Show {TIER_LABEL[t].toLowerCase()} rates
               </option>
@@ -238,6 +242,7 @@ export function CatalogueView({
             <ProductRow
               key={product.id}
               product={product}
+              session={session}
               tier={tier}
               onEdit={() => onEdit(product)}
               onDuplicate={() => onDuplicate(product)}
@@ -260,6 +265,7 @@ export function CatalogueView({
 
 function ProductRow({
   product,
+  session,
   tier,
   onEdit,
   onDuplicate,
@@ -268,6 +274,7 @@ function ProductRow({
   onNotify,
 }: {
   product: Product;
+  session: Session;
   tier: Tier;
   onEdit: () => void;
   onDuplicate: () => void;
@@ -275,7 +282,7 @@ function ProductRow({
   onMakeCard: () => void;
   onNotify: (message: string, tone?: "info" | "success" | "error") => void;
 }) {
-  const cover = product.photos[0];
+  const cover = product.photos[0]?.url;
   const description = joinParts([product.fabric, product.pieces, product.colours]);
 
   return (
@@ -305,6 +312,11 @@ function ProductRow({
             <span className="badge badge-emerald">{product.stitch}</span>
             {product.status !== "Available" && (
               <span className={`badge ${STATUS_BADGE[product.status]}`}>{product.status}</span>
+            )}
+            {!product.published && (
+              <span className="badge badge-gold" title="Not visible to customers">
+                Draft
+              </span>
             )}
           </div>
 
@@ -358,14 +370,16 @@ function ProductRow({
           <Icon name="copy" size={15} />
           Duplicate
         </button>
-        <button
-          type="button"
-          className="btn btn-danger btn-sm ml-auto"
-          onClick={onDelete}
-          aria-label={`Delete ${product.code}`}
-        >
-          <Icon name="trash" size={15} />
-        </button>
+        {session.canDelete && (
+          <button
+            type="button"
+            className="btn btn-danger btn-sm ml-auto"
+            onClick={onDelete}
+            aria-label={`Delete ${product.code}`}
+          >
+            <Icon name="trash" size={15} />
+          </button>
+        )}
       </div>
     </li>
   );

@@ -1,19 +1,20 @@
 "use client";
 
 /**
- * The shell: navigation, backup, and the wiring between the three views.
+ * The shell: navigation, backup, sign-out, and the wiring between views.
  *
- * All catalogue state lives in `useProducts`; all transient feedback lives in
- * `useToast`. This component owns only "what am I looking at right now", which
- * keeps it short enough to read in one sitting.
+ * The article being edited is held as an *id*, not an object. Photo uploads
+ * mutate the product inside `useProducts`, and a snapshot copy would go stale
+ * the moment a photo was added — the panel would keep rendering the old list.
  */
 
 import { useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useProducts } from "@/hooks/useProducts";
 import { useToast } from "@/hooks/useToast";
-import { exportBackup, exportCsv, parseBackup } from "@/lib/backup";
+import { exportBackup, exportCsv, importBackup } from "@/lib/backup";
 import { brand } from "@/lib/brand";
-import type { Product, ProductDraft } from "@/lib/types";
+import type { Product, ProductDraft, Session } from "@/lib/types";
 import { CatalogueView } from "./CatalogueView";
 import { CardStudio } from "./CardStudio";
 import { ProductForm } from "./ProductForm";
@@ -28,20 +29,25 @@ const NAV: { view: View; label: string; icon: IconName }[] = [
   { view: "studio", label: "Cards", icon: "card" },
 ];
 
-export function CatalogueManager() {
-  const catalogue = useProducts();
+export function CatalogueManager({ session }: { session: Session }) {
+  const catalogue = useProducts(session);
   const { toast, show, dismiss, attempt } = useToast();
+  const router = useRouter();
 
   const [view, setView] = useState<View>("catalogue");
-  const [editing, setEditing] = useState<Product | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Product | null>(null);
   const [studioId, setStudioId] = useState("");
-  const restoreInput = useRef<HTMLInputElement>(null);
+  const [importing, setImporting] = useState(false);
+  const importInput = useRef<HTMLInputElement>(null);
+
+  // Always the live copy, so photo changes appear immediately.
+  const editing = catalogue.products.find((p) => p.id === editingId) ?? null;
 
   /* ------------------------------------------------------------ navigation */
 
   const openEditor = (product: Product | null) => {
-    setEditing(product);
+    setEditingId(product?.id ?? null);
     setView("editor");
   };
 
@@ -51,18 +57,22 @@ export function CatalogueManager() {
   };
 
   const goToCatalogue = () => {
-    setEditing(null);
+    setEditingId(null);
     setView("catalogue");
   };
 
   /* --------------------------------------------------------------- actions */
 
   async function saveProduct(draft: ProductDraft) {
-    await attempt(async () => {
-      const saved = await catalogue.upsert(draft, editing?.id);
-      show(editing ? `${saved.code} updated.` : `${saved.code} added.`, "success");
+    const saved = await catalogue.upsert(draft, editing?.id);
+    if (editing) {
+      show(`${saved.code} updated.`, "success");
       goToCatalogue();
-    });
+    } else {
+      // Keep a new article open so its photos can be attached straight away.
+      setEditingId(saved.id);
+      show(`${saved.code} added — now add its photos.`, "success");
+    }
   }
 
   const duplicate = (product: Product) =>
@@ -77,20 +87,40 @@ export function CatalogueManager() {
     setPendingDelete(null);
     if (!target) return;
     void attempt(async () => {
-      await catalogue.remove(target.id);
+      await catalogue.remove(target);
       if (studioId === target.id) setStudioId("");
+      if (editingId === target.id) goToCatalogue();
       show(`${target.code} deleted.`);
     });
   };
 
-  const restore = (file: File | undefined) =>
-    file &&
-    attempt(async () => {
-      const rows = await parseBackup(file);
-      await catalogue.restore(rows);
-      show(`Restored ${rows.length} articles.`, "success");
-      goToCatalogue();
+  const runImport = (file: File | undefined) => {
+    if (!file) return;
+    setImporting(true);
+    void attempt(async () => {
+      try {
+        const result = await importBackup(
+          catalogue.supabase,
+          file,
+          session.canSeeTradeRates,
+        );
+        await catalogue.reload();
+        const parts = [`Imported ${result.imported} article(s)`];
+        if (result.photosUploaded) parts.push(`${result.photosUploaded} photo(s)`);
+        if (result.skipped.length) parts.push(`skipped ${result.skipped.length} already present`);
+        if (result.photosFailed) parts.push(`${result.photosFailed} photo(s) failed`);
+        show(`${parts.join(" · ")}. Imported articles start as drafts.`, "success");
+      } finally {
+        setImporting(false);
+      }
     });
+  };
+
+  async function signOut() {
+    await catalogue.supabase.auth.signOut();
+    router.replace("/login");
+    router.refresh();
+  }
 
   /* ------------------------------------------------------------------ views */
 
@@ -101,11 +131,8 @@ export function CatalogueManager() {
       return (
         <EmptyState
           icon="warning"
-          title="The catalogue couldn't be opened"
-          body={
-            catalogue.error ??
-            "Storage is unavailable. Private-browsing windows often block it — try a normal window."
-          }
+          title="The catalogue couldn't be loaded"
+          body={catalogue.error ?? "The database didn't respond. Try again in a moment."}
         />
       );
     }
@@ -114,12 +141,17 @@ export function CatalogueManager() {
       case "editor":
         return (
           <ProductForm
+            key={editingId ?? "new"}
             editing={editing}
+            session={session}
             categories={catalogue.categories}
             collections={catalogue.collections}
-            isCodeTaken={catalogue.isCodeTaken}
+            isCodeTaken={catalogue.codeTaken}
             onSubmit={saveProduct}
             onCancel={goToCatalogue}
+            onAddPhoto={catalogue.addPhoto}
+            onRemovePhoto={catalogue.removePhoto}
+            onMakeCover={catalogue.makeCover}
             onNotify={show}
           />
         );
@@ -137,6 +169,7 @@ export function CatalogueManager() {
         return (
           <CatalogueView
             products={catalogue.products}
+            session={session}
             categories={catalogue.categories}
             collections={catalogue.collections}
             onEdit={openEditor}
@@ -154,7 +187,6 @@ export function CatalogueManager() {
 
   return (
     <div className="min-h-dvh">
-      {/* ---------------------------------------------------------- masthead */}
       <header className="sticky top-0 z-30 border-b border-sand-200 bg-sand-50/85 backdrop-blur-md">
         <div className="mx-auto flex max-w-6xl items-center gap-4 px-4 py-3">
           <div className="flex-1">
@@ -175,38 +207,55 @@ export function CatalogueManager() {
             ))}
           </nav>
 
-          {hasProducts && (
-            <div className="hidden items-center gap-1 border-l border-sand-200 pl-2 md:flex">
-              <IconButton
-                icon="download"
-                label="Download a backup"
-                onClick={() => {
-                  exportBackup(catalogue.products);
-                  show("Backup downloaded — keep it somewhere safe.", "success");
-                }}
-              />
-              <IconButton
-                icon="archive"
-                label="Export rates as CSV"
-                onClick={() => {
-                  exportCsv(catalogue.products);
-                  show("Rate sheet downloaded.", "success");
-                }}
-              />
-              <IconButton
-                icon="upload"
-                label="Restore from a backup"
-                onClick={() => restoreInput.current?.click()}
-              />
-            </div>
-          )}
+          <div className="hidden items-center gap-1 border-l border-sand-200 pl-2 md:flex">
+            {hasProducts && (
+              <>
+                <IconButton
+                  icon="download"
+                  label="Download a snapshot"
+                  onClick={() => {
+                    exportBackup(catalogue.products);
+                    show("Snapshot downloaded.", "success");
+                  }}
+                />
+                <IconButton
+                  icon="archive"
+                  label="Export rates as CSV"
+                  onClick={() => {
+                    exportCsv(catalogue.products, session.canSeeTradeRates);
+                    show("Rate sheet downloaded.", "success");
+                  }}
+                />
+              </>
+            )}
+            <IconButton
+              icon="upload"
+              label="Import a backup from the old app"
+              onClick={() => importInput.current?.click()}
+            />
+          </div>
+
+          <div className="flex items-center gap-2 border-l border-sand-200 pl-2">
+            <span className="hidden text-xs text-sand-600 lg:block">
+              {session.email}
+              <span className="ml-1 text-sand-500">({session.role})</span>
+            </span>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => void signOut()}>
+              Sign out
+            </button>
+          </div>
         </div>
         <div className="rule-gold" />
       </header>
 
+      {importing && (
+        <p className="bg-emerald-800 px-4 py-2 text-center text-sm text-sand-50">
+          Importing — uploading photos can take a minute. Don&apos;t close this tab.
+        </p>
+      )}
+
       <main className="px-4 py-6 pb-28 sm:py-10 sm:pb-10">{body()}</main>
 
-      {/* ------------------------------------------------------ mobile tabs */}
       <nav
         aria-label="Sections"
         className="fixed inset-x-0 bottom-0 z-30 flex border-t border-sand-200 bg-sand-50/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md sm:hidden"
@@ -230,11 +279,9 @@ export function CatalogueManager() {
         })}
       </nav>
 
-      {/* ------------------------------------------------------------ footer */}
       <footer className="border-t border-sand-200 px-4 py-6 text-center text-xs leading-relaxed text-sand-500 max-sm:hidden">
         <p>
-          Saved on this device only. Download a backup regularly — clearing browser data erases the
-          catalogue.
+          Stored in the Jamaali database. Signed in as {session.email}.
         </p>
         <p className="mt-1">
           {brand.name} · {brand.website}
@@ -242,12 +289,12 @@ export function CatalogueManager() {
       </footer>
 
       <input
-        ref={restoreInput}
+        ref={importInput}
         type="file"
         accept="application/json,.json"
         className="sr-only"
         onChange={(event) => {
-          void restore(event.target.files?.[0]);
+          runImport(event.target.files?.[0]);
           event.target.value = "";
         }}
       />
@@ -255,7 +302,7 @@ export function CatalogueManager() {
       <ConfirmDialog
         open={pendingDelete !== null}
         title={`Delete ${pendingDelete?.code ?? ""}?`}
-        body="The article and its photos are removed from this device. A downloaded backup is the only way to get them back."
+        body="The article, its rates and its photos are removed permanently."
         confirmLabel="Delete"
         onConfirm={confirmDelete}
         onCancel={() => setPendingDelete(null)}
@@ -302,7 +349,13 @@ function IconButton({
   onClick: () => void;
 }) {
   return (
-    <button type="button" onClick={onClick} title={label} aria-label={label} className="btn btn-ghost btn-sm">
+    <button
+      type="button"
+      onClick={onClick}
+      title={label}
+      aria-label={label}
+      className="btn btn-ghost btn-sm"
+    >
       <Icon name={icon} size={16} />
     </button>
   );

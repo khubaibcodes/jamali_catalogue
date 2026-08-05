@@ -19,8 +19,17 @@ export type Tier = (typeof TIERS)[number];
 
 export interface Prices {
   retail: number | null;
+  /** Null can mean "not set" or "this account may not see it" — see `canSeeTradeRates`. */
   reseller: number | null;
   wholesale: number | null;
+}
+
+export interface Photo {
+  id: string;
+  /** Path inside the storage bucket. Needed to delete or replace the file. */
+  path: string;
+  /** Public URL for display and for drawing onto a card. */
+  url: string;
 }
 
 export interface Product {
@@ -38,9 +47,12 @@ export interface Product {
   moq: number | null;
   colours: string;
   status: Status;
+  /** Internal only — never sent to the public catalogue. */
   notes: string;
-  /** Data URLs. The first one is the cover shot used on cards and thumbnails. */
-  photos: string[];
+  /** The first is the cover shot used on cards and thumbnails. */
+  photos: Photo[];
+  /** Customers see this article only once it is switched on deliberately. */
+  published: boolean;
   createdAt: number;
   updatedAt: number;
 }
@@ -63,5 +75,16 @@ export function emptyDraft(): ProductDraft {
     status: "Available",
     notes: "",
     photos: [],
+    published: false,
   };
+}
+
+/** What the signed-in person is allowed to do. Derived from their profile role. */
+export interface Session {
+  userId: string;
+  email: string;
+  role: "owner" | "staff";
+  /** Only owners. Staff read zero rows from the trade-rate table. */
+  canSeeTradeRates: boolean;
+  canDelete: boolean;
 }

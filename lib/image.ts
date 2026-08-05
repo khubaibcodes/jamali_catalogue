@@ -64,6 +64,12 @@ async function decode(file: Blob): Promise<ImageBitmap | HTMLImageElement> {
 function loadElement(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
+    // Photos now come from Supabase Storage over HTTP. Drawing a cross-origin
+    // image onto a canvas taints it, and a tainted canvas throws a
+    // SecurityError from toBlob — which would break card export entirely.
+    // Storage serves permissive CORS headers, so requesting the image
+    // anonymously keeps the canvas clean and exportable.
+    if (/^https?:/i.test(src)) img.crossOrigin = "anonymous";
     img.onload = () => resolve(img);
     img.onerror = () => reject(new Error("That image couldn't be read."));
     img.src = src;

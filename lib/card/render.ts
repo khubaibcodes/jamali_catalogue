@@ -74,7 +74,7 @@ export async function renderCard(
   // Fonts and the photo are both async; start them together.
   const [, photo] = await Promise.all([
     ensureFonts([serif(60, 600), serif(40, 300), serif(30, 400, true), sans(28, 600)]),
-    loadForCanvas(product.photos[options.photoIndex] ?? product.photos[0]),
+    loadForCanvas((product.photos[options.photoIndex] ?? product.photos[0])?.url),
   ]);
 
   const { width: W, height: H, scale } = CARD_FORMATS[options.format];

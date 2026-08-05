@@ -1,12 +1,15 @@
 "use client";
 
 /**
- * Add / edit an article. The form owns a local draft and only reports upward on
- * submit, so typing never re-renders the catalogue behind it.
+ * Add / edit an article.
+ *
+ * Photos are attached to a saved article rather than held in the draft: an
+ * upload needs a row to belong to, and inventing a temporary one would leave
+ * orphans behind whenever someone abandoned the form. New articles therefore
+ * save first and gain their photo panel immediately afterwards.
  */
 
 import { useRef, useState, type FormEvent } from "react";
-import { byteSize, compress, formatBytes } from "@/lib/image";
 import { toNumber } from "@/lib/format";
 import {
   emptyDraft,
@@ -16,6 +19,7 @@ import {
   type Pieces,
   type Product,
   type ProductDraft,
+  type Session,
   type Status,
   type Stitch,
 } from "@/lib/types";
@@ -26,25 +30,35 @@ const MAX_PHOTOS = 5;
 
 export function ProductForm({
   editing,
+  session,
   categories,
   collections,
   isCodeTaken,
   onSubmit,
   onCancel,
+  onAddPhoto,
+  onRemovePhoto,
+  onMakeCover,
   onNotify,
 }: {
   editing: Product | null;
+  session: Session;
   categories: string[];
   collections: string[];
-  isCodeTaken: (code: string, exceptId?: string) => boolean;
+  isCodeTaken: (code: string, exceptId?: string) => Promise<boolean>;
   onSubmit: (draft: ProductDraft) => Promise<void>;
   onCancel: () => void;
+  // These resolve to the updated product; the form doesn't need it, and
+  // `unknown` lets the caller pass its handlers through unwrapped.
+  onAddPhoto: (product: Product, file: File) => Promise<unknown>;
+  onRemovePhoto: (product: Product, photoId: string) => Promise<unknown>;
+  onMakeCover: (product: Product, photoId: string) => Promise<unknown>;
   onNotify: (message: string, tone?: "info" | "success" | "error") => void;
 }) {
   const [draft, setDraft] = useState<ProductDraft>(() => editing ?? emptyDraft());
   const [codeError, setCodeError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [readingPhotos, setReadingPhotos] = useState(false);
+  const [busyPhotos, setBusyPhotos] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
 
   const set = <K extends keyof ProductDraft>(key: K, value: ProductDraft[K]) =>
@@ -52,42 +66,6 @@ export function ProductForm({
 
   const setPrice = (tier: keyof ProductDraft["prices"], raw: string) =>
     setDraft((prev) => ({ ...prev, prices: { ...prev.prices, [tier]: toNumber(raw) } }));
-
-  async function addPhotos(files: FileList | null) {
-    if (!files?.length) return;
-    const room = MAX_PHOTOS - draft.photos.length;
-    if (room <= 0) {
-      onNotify(`An article can hold ${MAX_PHOTOS} photos.`, "error");
-      return;
-    }
-
-    setReadingPhotos(true);
-    const accepted: string[] = [];
-    let failures = 0;
-    for (const file of Array.from(files).slice(0, room)) {
-      try {
-        accepted.push(await compress(file));
-      } catch {
-        failures += 1;
-      }
-    }
-    setReadingPhotos(false);
-
-    if (accepted.length) setDraft((prev) => ({ ...prev, photos: [...prev.photos, ...accepted] }));
-    if (failures) onNotify(`${failures} photo(s) couldn't be read.`, "error");
-    if (fileInput.current) fileInput.current.value = "";
-  }
-
-  const removePhoto = (index: number) =>
-    setDraft((prev) => ({ ...prev, photos: prev.photos.filter((_, i) => i !== index) }));
-
-  /** The cover shot leads the catalogue row and every exported card. */
-  const makeCover = (index: number) =>
-    setDraft((prev) => {
-      const photos = [...prev.photos];
-      const [picked] = photos.splice(index, 1);
-      return { ...prev, photos: [picked, ...photos] };
-    });
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -97,32 +75,51 @@ export function ProductForm({
       setCodeError("Every article needs a code — it's what customers quote.");
       return;
     }
-    if (isCodeTaken(code, editing?.id)) {
-      setCodeError(`${code} is already in the catalogue.`);
-      return;
-    }
 
-    setCodeError(null);
     setSaving(true);
     try {
+      if (await isCodeTaken(code, editing?.id)) {
+        setCodeError(`${code} is already in the catalogue.`);
+        return;
+      }
+      setCodeError(null);
       await onSubmit({ ...draft, code });
+    } catch (e) {
+      onNotify(e instanceof Error ? e.message : "Couldn't save that.", "error");
     } finally {
       setSaving(false);
     }
   }
 
-  const photoBytes = draft.photos.reduce((sum, p) => sum + byteSize(p), 0);
+  async function addPhotos(files: FileList | null) {
+    if (!files?.length || !editing) return;
+    const room = MAX_PHOTOS - editing.photos.length;
+    if (room <= 0) {
+      onNotify(`An article can hold ${MAX_PHOTOS} photos.`, "error");
+      return;
+    }
+
+    setBusyPhotos(true);
+    let failures = 0;
+    for (const file of Array.from(files).slice(0, room)) {
+      try {
+        await onAddPhoto(editing, file);
+      } catch {
+        failures += 1;
+      }
+    }
+    setBusyPhotos(false);
+    if (failures) onNotify(`${failures} photo(s) couldn't be uploaded.`, "error");
+    if (fileInput.current) fileInput.current.value = "";
+  }
 
   return (
     <form onSubmit={handleSubmit} className="mx-auto max-w-3xl pb-24">
       <header className="mb-8">
         <p className="eyebrow">{editing ? "Editing article" : "New article"}</p>
-        <h1 className="mt-1 text-3xl">
-          {editing ? editing.code : "Add to the catalogue"}
-        </h1>
+        <h1 className="mt-1 text-3xl">{editing ? editing.code : "Add to the catalogue"}</h1>
       </header>
 
-      {/* ---------------------------------------------------------- identity */}
       <Section title="Identity">
         <div className="grid gap-4 sm:grid-cols-2">
           <Field
@@ -203,7 +200,6 @@ export function ProductForm({
         </div>
       </Section>
 
-      {/* ------------------------------------------------------------ fabric */}
       <Section title="The article">
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Fabric">
@@ -263,10 +259,13 @@ export function ProductForm({
         </div>
       </Section>
 
-      {/* ------------------------------------------------------------- rates */}
       <Section
         title="Rates"
-        note="Leave a rate blank if it doesn't apply. Nothing here is ever shown publicly unless you choose it in the card studio."
+        note={
+          session.canSeeTradeRates
+            ? "Only the retail price is ever shown to customers. Trade rates stay private to owners."
+            : "Retail price only. Trade rates are visible to owners."
+        }
       >
         <div className="grid gap-4 sm:grid-cols-3">
           <PriceField
@@ -275,37 +274,45 @@ export function ProductForm({
             value={draft.prices.retail}
             onChange={(v) => setPrice("retail", v)}
           />
-          <PriceField
-            label="Reseller"
-            placeholder="2,850"
-            value={draft.prices.reseller}
-            onChange={(v) => setPrice("reseller", v)}
-          />
-          <PriceField
-            label="Wholesale"
-            placeholder="2,450"
-            value={draft.prices.wholesale}
-            onChange={(v) => setPrice("wholesale", v)}
-          />
+          {/* Staff never see these. The database refuses the read regardless,
+              so hiding them keeps the interface honest rather than enforcing. */}
+          {session.canSeeTradeRates && (
+            <>
+              <PriceField
+                label="Reseller"
+                placeholder="2,850"
+                value={draft.prices.reseller}
+                onChange={(v) => setPrice("reseller", v)}
+              />
+              <PriceField
+                label="Wholesale"
+                placeholder="2,450"
+                value={draft.prices.wholesale}
+                onChange={(v) => setPrice("wholesale", v)}
+              />
+            </>
+          )}
         </div>
 
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
-          <Field label="Minimum order" hint="Pieces required to get the wholesale rate.">
-            {({ id, describedBy }) => (
-              <input
-                id={id}
-                aria-describedby={describedBy}
-                className="input numeric"
-                type="number"
-                inputMode="numeric"
-                min={0}
-                placeholder="5"
-                value={draft.moq ?? ""}
-                onChange={(e) => set("moq", toNumber(e.target.value))}
-              />
-            )}
-          </Field>
-          <Field label="Notes" hint="Anything you'd otherwise retype in every reply.">
+          {session.canSeeTradeRates && (
+            <Field label="Minimum order" hint="Pieces required to get the wholesale rate.">
+              {({ id, describedBy }) => (
+                <input
+                  id={id}
+                  aria-describedby={describedBy}
+                  className="input numeric"
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  placeholder="5"
+                  value={draft.moq ?? ""}
+                  onChange={(e) => set("moq", toNumber(e.target.value))}
+                />
+              )}
+            </Field>
+          )}
+          <Field label="Notes" hint="Internal only — never shown to customers.">
             {({ id, describedBy }) => (
               <input
                 id={id}
@@ -320,89 +327,110 @@ export function ProductForm({
         </div>
       </Section>
 
-      {/* ------------------------------------------------------------ photos */}
+      <Section title="Shopfront" note="Nothing reaches customers until you switch this on.">
+        <label className="flex cursor-pointer items-start gap-3">
+          <input
+            type="checkbox"
+            className="mt-0.5 size-4 accent-emerald-800"
+            checked={draft.published}
+            onChange={(e) => set("published", e.target.checked)}
+          />
+          <span className="text-sm">
+            <span className="font-medium">Show this article in the public catalogue</span>
+            <span className="mt-0.5 block text-xs leading-relaxed text-sand-600">
+              Customers see the code, fabric, colours, photos and retail price. Trade rates and
+              notes are never included.
+            </span>
+          </span>
+        </label>
+      </Section>
+
       <Section
         title="Photos"
         note={
-          draft.photos.length
-            ? `${draft.photos.length} of ${MAX_PHOTOS} · about ${formatBytes(photoBytes)}`
-            : `Up to ${MAX_PHOTOS}. The first is the cover and goes on every card.`
+          editing
+            ? `${editing.photos.length} of ${MAX_PHOTOS}. The first is the cover and goes on every card.`
+            : "Save the article first — photos attach to it once it exists."
         }
       >
-        <div className="flex flex-wrap gap-3">
-          {draft.photos.map((photo, index) => (
-            <figure
-              key={`${index}-${photo.slice(-24)}`}
-              className="group relative overflow-hidden rounded-md border border-sand-200 bg-sand-100"
-            >
-              {/* Data URLs from the user's own device — next/image adds nothing here. */}
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={photo} alt="" className="size-28 object-cover" />
+        {editing ? (
+          <>
+            <div className="flex flex-wrap gap-3">
+              {editing.photos.map((photo, index) => (
+                <figure
+                  key={photo.id}
+                  className="group relative overflow-hidden rounded-md border border-sand-200 bg-sand-100"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={photo.url} alt="" className="size-28 object-cover" />
 
-              {index === 0 && (
-                <figcaption className="absolute inset-x-0 top-0 bg-emerald-900/85 py-1 text-center text-[0.625rem] font-semibold tracking-widest text-gold-300">
-                  COVER
-                </figcaption>
-              )}
+                  {index === 0 && (
+                    <figcaption className="absolute inset-x-0 top-0 bg-emerald-900/85 py-1 text-center text-[0.625rem] font-semibold tracking-widest text-gold-300">
+                      COVER
+                    </figcaption>
+                  )}
 
-              <div className="absolute inset-x-0 bottom-0 flex justify-center gap-1 bg-emerald-950/80 p-1 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
-                {index > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => makeCover(index)}
-                    className="rounded p-1 text-sand-50 hover:text-gold-300"
-                    title="Make this the cover"
-                    aria-label="Make this the cover photo"
-                  >
-                    <Icon name="sparkle" size={15} />
-                  </button>
-                )}
+                  <div className="absolute inset-x-0 bottom-0 flex justify-center gap-1 bg-emerald-950/80 p-1 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+                    {index > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => void onMakeCover(editing, photo.id)}
+                        className="rounded p-1 text-sand-50 hover:text-gold-300"
+                        aria-label="Make this the cover photo"
+                      >
+                        <Icon name="sparkle" size={15} />
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => void onRemovePhoto(editing, photo.id)}
+                      className="rounded p-1 text-sand-50 hover:text-danger"
+                      aria-label="Remove this photo"
+                    >
+                      <Icon name="trash" size={15} />
+                    </button>
+                  </div>
+                </figure>
+              ))}
+
+              {editing.photos.length < MAX_PHOTOS && (
                 <button
                   type="button"
-                  onClick={() => removePhoto(index)}
-                  className="rounded p-1 text-sand-50 hover:text-danger"
-                  title="Remove"
-                  aria-label="Remove this photo"
+                  onClick={() => fileInput.current?.click()}
+                  disabled={busyPhotos}
+                  className="grid size-28 place-items-center gap-1 rounded-md border border-dashed border-sand-300 bg-white text-sand-600 transition-colors hover:border-emerald-700 hover:text-emerald-800 disabled:opacity-60"
                 >
-                  <Icon name="trash" size={15} />
+                  <Icon name={busyPhotos ? "image" : "plus"} size={20} />
+                  <span className="text-xs font-medium">
+                    {busyPhotos ? "Uploading…" : "Add photo"}
+                  </span>
                 </button>
-              </div>
-            </figure>
-          ))}
+              )}
+            </div>
 
-          {draft.photos.length < MAX_PHOTOS && (
-            <button
-              type="button"
-              onClick={() => fileInput.current?.click()}
-              disabled={readingPhotos}
-              className="grid size-28 place-items-center gap-1 rounded-md border border-dashed border-sand-300 bg-white text-sand-600 transition-colors hover:border-emerald-700 hover:text-emerald-800 disabled:opacity-60"
-            >
-              <Icon name={readingPhotos ? "image" : "plus"} size={20} />
-              <span className="text-xs font-medium">
-                {readingPhotos ? "Reading…" : "Add photo"}
-              </span>
-            </button>
-          )}
-        </div>
-
-        <input
-          ref={fileInput}
-          type="file"
-          accept="image/*"
-          multiple
-          className="sr-only"
-          onChange={(e) => addPhotos(e.target.files)}
-        />
+            <input
+              ref={fileInput}
+              type="file"
+              accept="image/*"
+              multiple
+              className="sr-only"
+              onChange={(e) => void addPhotos(e.target.files)}
+            />
+          </>
+        ) : (
+          <p className="rounded-md border border-dashed border-sand-300 p-6 text-center text-sm text-sand-600">
+            Add the article, then come back to attach its photos.
+          </p>
+        )}
       </Section>
 
-      {/* ------------------------------------------------------------ actions */}
       <div className="sticky bottom-0 -mx-4 mt-10 flex gap-3 border-t border-sand-200 bg-sand-50/95 px-4 py-4 backdrop-blur sm:mx-0 sm:rounded-lg sm:border sm:px-5">
         <button type="submit" className="btn btn-primary flex-1 sm:flex-none" disabled={saving}>
           <Icon name="check" size={16} />
           {saving ? "Saving…" : editing ? "Save changes" : "Add article"}
         </button>
         <button type="button" className="btn btn-quiet" onClick={onCancel}>
-          Cancel
+          {editing ? "Done" : "Cancel"}
         </button>
       </div>
     </form>

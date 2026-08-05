@@ -198,7 +198,7 @@ export function CardStudio({
                 <div className="flex flex-wrap gap-2">
                   {product.photos.map((photo, index) => (
                     <button
-                      key={index}
+                      key={photo.id}
                       type="button"
                       onClick={() => set("photoIndex", index)}
                       aria-pressed={settings.photoIndex === index}
@@ -210,7 +210,7 @@ export function CardStudio({
                       }`}
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={photo} alt="" className="size-full object-cover" />
+                      <img src={photo.url} alt="" className="size-full object-cover" />
                     </button>
                   ))}
                 </div>
