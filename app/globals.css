@@ -2,37 +2,38 @@
 
 /* ==========================================================================
    Jamaali — design tokens
-   Two surfaces carry the whole product: warm ivory "paper" for managing the
-   catalogue, and deep emerald "studio" for designing what goes out. Gold is an
-   accent only — hairlines, marks, one price — never a large fill.
+   Taken from the live jamaali.com storefront: near-black text on white, with
+   amber (#e8a83e) as the single accent — the trefoil and the full stop in the
+   wordmark. Amber stays an accent: hairlines, badges, one price. Never a
+   large fill, or it stops reading as gold and starts reading as orange.
    ========================================================================== */
 
 @theme {
-  /* Emerald — the house colour */
-  --color-emerald-950: #071c16;
-  --color-emerald-900: #0b2b21;
-  --color-emerald-800: #0f4436;
-  --color-emerald-700: #186049;
-  --color-emerald-600: #237b5e;
-  --color-emerald-500: #2f9a76;
+  /* Ink — wordmark black through to the cocoa of the app tile */
+  --color-ink-950: #14100e;
+  --color-ink-900: #1a1a1a;
+  --color-ink-800: #222222;
+  --color-ink-700: #3a2a22;
+  --color-ink-600: #4a322a;
+  --color-ink-500: #6b4f42;
 
-  /* Gold — accent, used sparingly */
-  --color-gold-700: #8a6d34;
-  --color-gold-500: #b8944d;
-  --color-gold-300: #e3c88a;
-  --color-gold-100: #f3e4bc;
+  /* Amber — the house accent, used sparingly */
+  --color-amber-700: #c4862a;
+  --color-amber-500: #e8a83e;
+  --color-amber-300: #f2b168;
+  --color-amber-100: #fbebd4;
 
-  /* Warm neutrals — the paper the catalogue is printed on */
-  --color-sand-50: #fbf8f2;
-  --color-sand-100: #f4efe4;
-  --color-sand-200: #e4dccb;
-  --color-sand-300: #cfc5af;
-  --color-sand-500: #8b9189;
-  --color-sand-600: #6f7a72;
-  --color-sand-900: #1c2320;
+  /* Neutrals — the storefront is white-dominant, so these stay very light */
+  --color-shell-50: #fafaf9;
+  --color-shell-100: #f5f4f2;
+  --color-shell-200: #e6e4e1;
+  --color-shell-300: #cfccc7;
+  --color-shell-500: #878787;
+  --color-shell-600: #696969;
+  --color-shell-900: #1a1a1a;
 
-  --color-danger: #9b3535;
-  --color-danger-soft: #fbeeee;
+  --color-danger: #b3261e;
+  --color-danger-soft: #fdeceb;
   --color-success: #2f7d57;
   --color-success-soft: #ecf6f0;
 
@@ -41,17 +42,18 @@
   --radius-lg: 1.125rem;
   --radius-xl: 1.625rem;
 
-  /* Warm-tinted shadows; neutral grey shadows look dirty on ivory. */
-  --shadow-plate: 0 1px 2px rgb(28 35 32 / 0.04), 0 8px 24px -12px rgb(15 68 54 / 0.14);
-  --shadow-lift: 0 2px 4px rgb(28 35 32 / 0.05), 0 18px 40px -18px rgb(15 68 54 / 0.28);
-  --shadow-studio: 0 30px 80px -30px rgb(7 28 22 / 0.75);
+  /* Soft, low-contrast shadows — heavy drop shadows fight the photography. */
+  --shadow-plate: 0 1px 2px rgb(26 26 26 / 0.04), 0 8px 24px -12px rgb(34 34 34 / 0.14);
+  --shadow-lift: 0 2px 4px rgb(26 26 26 / 0.05), 0 18px 40px -18px rgb(34 34 34 / 0.28);
+  --shadow-studio: 0 30px 80px -30px rgb(20 16 14 / 0.75);
 
   --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 @theme inline {
-  --font-display: var(--font-cormorant), Georgia, "Times New Roman", serif;
-  --font-ui: var(--font-inter), system-ui, -apple-system, "Segoe UI", sans-serif;
+  /* Both are what jamaali.com actually serves. */
+  --font-display: var(--font-montserrat), "Helvetica Neue", Arial, sans-serif;
+  --font-ui: var(--font-poppins), system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
 /* ==========================================================================
@@ -69,13 +71,14 @@
   }
 
   body {
-    background: var(--color-sand-50);
-    color: var(--color-sand-900);
+    background: var(--color-shell-50);
+    color: var(--color-shell-900);
     font-family: var(--font-ui);
-    /* A barely-there emerald wash so white cards read as raised. */
+    /* The storefront is white-dominant; a faint amber wash keeps white cards
+       from disappearing into the page without tinting the photography. */
     background-image: radial-gradient(
       120rem 60rem at 50% -20rem,
-      rgb(35 123 94 / 0.07),
+      rgb(232 168 62 / 0.06),
       transparent 65%
     );
     background-attachment: fixed;
@@ -92,14 +95,14 @@
 
   /* Visible only for keyboard users, but unmistakable when it is. */
   :focus-visible {
-    outline: 2px solid var(--color-emerald-700);
+    outline: 2px solid var(--color-ink-700);
     outline-offset: 2px;
     border-radius: var(--radius-sm);
   }
 
   ::selection {
-    background: var(--color-gold-300);
-    color: var(--color-emerald-950);
+    background: var(--color-amber-300);
+    color: var(--color-ink-950);
   }
 
   /* Number inputs: the spinners are useless on a rate sheet. */
@@ -122,6 +125,11 @@
 @layer components {
   /* --- typography ------------------------------------------------------ */
 
+  /*
+   * Text fallback for the wordmark. The real mark is artwork
+   * (public/brand/jamaali-wordmark.png) — a high-contrast serif that no web
+   * font matches — so prefer <Wordmark /> and keep this for tight spots.
+   */
   .wordmark {
     font-family: var(--font-display);
     font-weight: 600;
@@ -134,7 +142,7 @@
     font-weight: 600;
     letter-spacing: 0.16em;
     text-transform: uppercase;
-    color: var(--color-sand-600);
+    color: var(--color-shell-600);
   }
 
   .numeric {
@@ -145,29 +153,29 @@
 
   .plate {
     background: #fff;
-    border: 1px solid var(--color-sand-200);
+    border: 1px solid var(--color-shell-200);
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-plate);
   }
 
   .studio {
     background:
-      radial-gradient(60rem 40rem at 50% 0%, rgb(35 123 94 / 0.28), transparent 70%),
-      linear-gradient(180deg, var(--color-emerald-900), var(--color-emerald-950));
-    color: var(--color-sand-50);
-    border: 1px solid rgb(227 200 138 / 0.18);
+      radial-gradient(60rem 40rem at 50% 0%, rgb(74 50 42 / 0.28), transparent 70%),
+      linear-gradient(180deg, var(--color-ink-900), var(--color-ink-950));
+    color: var(--color-shell-50);
+    border: 1px solid rgb(232 168 62 / 0.18);
     border-radius: var(--radius-xl);
   }
 
   /* A 1px gold rule that fades at both ends — the brand's separator. */
-  .rule-gold {
+  .rule-amber {
     height: 1px;
     background: linear-gradient(
       90deg,
       transparent,
-      var(--color-gold-300) 22%,
-      var(--color-gold-500) 50%,
-      var(--color-gold-300) 78%,
+      var(--color-amber-300) 22%,
+      var(--color-amber-500) 50%,
+      var(--color-amber-300) 78%,
       transparent
     );
   }
@@ -203,40 +211,40 @@
   }
 
   .btn-primary {
-    background: var(--color-emerald-800);
-    color: var(--color-sand-50);
+    background: var(--color-ink-800);
+    color: var(--color-shell-50);
     box-shadow: var(--shadow-plate);
   }
   .btn-primary:hover:not(:disabled) {
-    background: var(--color-emerald-700);
+    background: var(--color-ink-700);
     box-shadow: var(--shadow-lift);
   }
 
-  .btn-gold {
-    background: linear-gradient(140deg, var(--color-gold-300), var(--color-gold-500));
-    color: var(--color-emerald-950);
+  .btn-amber {
+    background: linear-gradient(140deg, var(--color-amber-300), var(--color-amber-500));
+    color: var(--color-ink-950);
   }
-  .btn-gold:hover:not(:disabled) {
-    background: linear-gradient(140deg, var(--color-gold-100), var(--color-gold-500));
+  .btn-amber:hover:not(:disabled) {
+    background: linear-gradient(140deg, var(--color-amber-100), var(--color-amber-500));
   }
 
   .btn-quiet {
     background: #fff;
-    border-color: var(--color-sand-200);
-    color: var(--color-sand-900);
+    border-color: var(--color-shell-200);
+    color: var(--color-shell-900);
   }
   .btn-quiet:hover:not(:disabled) {
-    border-color: var(--color-emerald-700);
-    color: var(--color-emerald-800);
+    border-color: var(--color-ink-700);
+    color: var(--color-ink-800);
   }
 
   .btn-ghost {
     background: transparent;
-    color: var(--color-sand-600);
+    color: var(--color-shell-600);
   }
   .btn-ghost:hover:not(:disabled) {
-    background: var(--color-sand-100);
-    color: var(--color-sand-900);
+    background: var(--color-shell-100);
+    color: var(--color-shell-900);
   }
 
   .btn-danger {
@@ -255,13 +263,13 @@
 
   /* Buttons sitting on the dark studio surface */
   .btn-on-dark {
-    background: rgb(251 248 242 / 0.08);
-    border-color: rgb(227 200 138 / 0.28);
-    color: var(--color-sand-50);
+    background: rgb(250 250 249 / 0.08);
+    border-color: rgb(232 168 62 / 0.28);
+    color: var(--color-shell-50);
   }
   .btn-on-dark:hover:not(:disabled) {
-    background: rgb(251 248 242 / 0.16);
-    border-color: var(--color-gold-300);
+    background: rgb(250 250 249 / 0.16);
+    border-color: var(--color-amber-300);
   }
 
   /* --- form controls --------------------------------------------------- */
@@ -273,14 +281,14 @@
     font-weight: 600;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    color: var(--color-emerald-800);
+    color: var(--color-ink-800);
   }
 
   .input {
     width: 100%;
     padding: 0.6875rem 0.875rem;
     background: #fff;
-    border: 1px solid var(--color-sand-200);
+    border: 1px solid var(--color-shell-200);
     border-radius: var(--radius-md);
     /* 16px minimum, otherwise iOS Safari zooms the page on focus. */
     font-size: 1rem;
@@ -291,21 +299,21 @@
       box-shadow 0.18s var(--ease-out-soft);
   }
   .input::placeholder {
-    color: var(--color-sand-300);
+    color: var(--color-shell-300);
   }
   .input:hover {
-    border-color: var(--color-sand-300);
+    border-color: var(--color-shell-300);
   }
   .input:focus {
     outline: none;
-    border-color: var(--color-emerald-700);
-    box-shadow: 0 0 0 3px rgb(24 96 73 / 0.12);
+    border-color: var(--color-ink-700);
+    box-shadow: 0 0 0 3px rgb(58 42 34 / 0.12);
   }
   .input[aria-invalid="true"] {
     border-color: var(--color-danger);
   }
   .input[aria-invalid="true"]:focus {
-    box-shadow: 0 0 0 3px rgb(155 53 53 / 0.12);
+    box-shadow: 0 0 0 3px rgb(179 38 30 / 0.12);
   }
 
   select.input {
@@ -322,8 +330,8 @@
     flex-wrap: wrap;
     gap: 0.25rem;
     padding: 0.25rem;
-    background: var(--color-sand-100);
-    border: 1px solid var(--color-sand-200);
+    background: var(--color-shell-100);
+    border: 1px solid var(--color-shell-200);
     border-radius: var(--radius-md);
   }
   .segment-option {
@@ -336,7 +344,7 @@
     font: inherit;
     font-size: 0.8125rem;
     font-weight: 500;
-    color: var(--color-sand-600);
+    color: var(--color-shell-600);
     cursor: pointer;
     transition:
       background-color 0.18s var(--ease-out-soft),
@@ -344,28 +352,28 @@
       box-shadow 0.18s var(--ease-out-soft);
   }
   .segment-option:hover {
-    color: var(--color-sand-900);
+    color: var(--color-shell-900);
   }
   .segment-option[aria-checked="true"] {
     background: #fff;
-    color: var(--color-emerald-800);
+    color: var(--color-ink-800);
     font-weight: 600;
     box-shadow: var(--shadow-plate);
   }
 
   .segment-dark {
-    background: rgb(7 28 22 / 0.45);
-    border-color: rgb(227 200 138 / 0.18);
+    background: rgb(20 16 14 / 0.45);
+    border-color: rgb(232 168 62 / 0.18);
   }
   .segment-dark .segment-option {
-    color: rgb(251 248 242 / 0.6);
+    color: rgb(250 250 249 / 0.6);
   }
   .segment-dark .segment-option:hover {
-    color: var(--color-sand-50);
+    color: var(--color-shell-50);
   }
   .segment-dark .segment-option[aria-checked="true"] {
-    background: rgb(227 200 138 / 0.92);
-    color: var(--color-emerald-950);
+    background: rgb(232 168 62 / 0.92);
+    color: var(--color-ink-950);
     box-shadow: none;
   }
 
@@ -383,19 +391,19 @@
     letter-spacing: 0.04em;
     white-space: nowrap;
   }
-  .badge-emerald {
-    background: rgb(15 68 54 / 0.08);
-    border-color: rgb(15 68 54 / 0.16);
-    color: var(--color-emerald-800);
+  .badge-ink {
+    background: rgb(34 34 34 / 0.08);
+    border-color: rgb(34 34 34 / 0.16);
+    color: var(--color-ink-800);
   }
-  .badge-gold {
-    background: rgb(184 148 77 / 0.12);
-    border-color: rgb(184 148 77 / 0.28);
-    color: var(--color-gold-700);
+  .badge-amber {
+    background: rgb(232 168 62 / 0.12);
+    border-color: rgb(232 168 62 / 0.28);
+    color: var(--color-amber-700);
   }
   .badge-danger {
     background: var(--color-danger-soft);
-    border-color: rgb(155 53 53 / 0.2);
+    border-color: rgb(179 38 30 / 0.2);
     color: var(--color-danger);
   }
   .badge-success {
@@ -409,11 +417,11 @@
   .chip {
     padding: 0.375rem 0.75rem;
     border-radius: 999px;
-    border: 1px solid var(--color-sand-200);
+    border: 1px solid var(--color-shell-200);
     background: #fff;
     font-size: 0.8125rem;
     font-weight: 500;
-    color: var(--color-sand-600);
+    color: var(--color-shell-600);
     cursor: pointer;
     transition:
       border-color 0.18s var(--ease-out-soft),
@@ -421,13 +429,13 @@
       color 0.18s var(--ease-out-soft);
   }
   .chip:hover {
-    border-color: var(--color-sand-300);
-    color: var(--color-sand-900);
+    border-color: var(--color-shell-300);
+    color: var(--color-shell-900);
   }
   .chip[aria-pressed="true"] {
-    background: var(--color-emerald-800);
-    border-color: var(--color-emerald-800);
-    color: var(--color-sand-50);
+    background: var(--color-ink-800);
+    border-color: var(--color-ink-800);
+    color: var(--color-shell-50);
   }
 }
 
@@ -474,9 +482,9 @@
 @utility skeleton {
   background: linear-gradient(
     90deg,
-    var(--color-sand-100) 25%,
-    var(--color-sand-200) 37%,
-    var(--color-sand-100) 63%
+    var(--color-shell-100) 25%,
+    var(--color-shell-200) 37%,
+    var(--color-shell-100) 63%
   );
   background-size: 200% 100%;
   animation: shimmer 1.4s linear infinite;

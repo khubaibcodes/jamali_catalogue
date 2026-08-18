@@ -45,7 +45,9 @@ export interface Product {
   prices: Prices;
   /** Minimum order quantity for wholesale. */
   moq: number | null;
-  colours: string;
+  colours: string[];
+  /** Customer-facing detail. Distinct from `notes`, which never leaves the shop. */
+  designNotes: string;
   status: Status;
   /** Internal only — never sent to the public catalogue. */
   notes: string;
@@ -71,7 +73,8 @@ export function emptyDraft(): ProductDraft {
     pieces: "3-Piece",
     prices: { retail: null, reseller: null, wholesale: null },
     moq: null,
-    colours: "",
+    colours: [],
+    designNotes: "",
     status: "Available",
     notes: "",
     photos: [],

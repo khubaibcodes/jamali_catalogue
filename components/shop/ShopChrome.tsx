@@ -1,41 +1,33 @@
 import Link from "next/link";
-import { brand, whatsappLink } from "@/lib/brand";
-import { Icon } from "@/components/ui/Icon";
+import { brand } from "@/lib/brand";
+import { Wordmark } from "./Wordmark";
+
+/**
+ * Shopfront header and footer.
+ *
+ * Carries no phone number, no WhatsApp link and no email — the public
+ * catalogue is a lookbook, not a contact channel. Customers who want to order
+ * already know where to find the shop.
+ */
 
 export function ShopHeader() {
   return (
-    <header className="border-b border-sand-200 bg-sand-50/85 backdrop-blur-md">
-      <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-5">
-        <Link href="/" className="group">
-          <p className="wordmark text-xl text-emerald-800 sm:text-2xl">{brand.name}</p>
-          <p className="mt-1 text-[0.625rem] italic tracking-[0.14em] text-gold-700">
-            {brand.tagline}
-          </p>
+    <header className="sticky top-0 z-30 border-b border-shell-200 bg-white/90 backdrop-blur-md">
+      <div className="mx-auto flex max-w-6xl items-center justify-center px-4 py-4 sm:py-5">
+        <Link href="/" aria-label={`${brand.name} home`}>
+          <Wordmark height={30} priority className="h-6 w-auto sm:h-8" />
         </Link>
-
-        <a
-          href={whatsappLink(`Hello ${brand.name}, I'd like to see your latest collection.`)}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="btn btn-primary btn-sm"
-        >
-          <Icon name="whatsapp" size={15} />
-          <span className="max-sm:sr-only">Order on WhatsApp</span>
-        </a>
       </div>
-      <div className="rule-gold" />
+      <div className="rule-amber" />
     </header>
   );
 }
 
 export function ShopFooter() {
   return (
-    <footer className="mt-20 border-t border-sand-200 px-4 py-10 text-center">
-      <p className="wordmark text-base text-emerald-800">{brand.name}</p>
-      <p className="mt-2 text-xs italic text-gold-700">{brand.tagline}</p>
-      <p className="mt-4 text-xs text-sand-500">
-        Order on WhatsApp · {brand.website}
-      </p>
+    <footer className="mt-24 border-t border-shell-200 px-4 py-12 text-center">
+      <Wordmark height={26} className="mx-auto h-5 w-auto opacity-90" />
+      <p className="mt-4 text-xs tracking-[0.14em] text-shell-500 uppercase">{brand.website}</p>
     </footer>
   );
 }

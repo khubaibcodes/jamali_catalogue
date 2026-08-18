@@ -2,11 +2,12 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { brand, whatsappLink } from "@/lib/brand";
+import { brand } from "@/lib/brand";
 import { money } from "@/lib/format";
 import { findArticle, listArticles } from "@/lib/shop";
 import { ArticleCard } from "@/components/shop/ArticleCard";
 import { ShopFooter, ShopHeader } from "@/components/shop/ShopChrome";
+import { ArticlePdfButton } from "@/components/shop/PdfButtons";
 import { Icon } from "@/components/ui/Icon";
 
 export const revalidate = 60;
@@ -23,7 +24,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return {
     title: `${title} · ${brand.name}`,
     description: [article.fabric, article.stitch, article.pieces].filter(Boolean).join(", "),
-    // The cover photo doubles as the WhatsApp and Instagram link preview.
+    // The cover photo doubles as the link preview when the page is shared.
     openGraph: {
       title,
       images: article.photos[0] ? [{ url: article.photos[0].url }] : undefined,
@@ -36,12 +37,6 @@ export default async function ArticlePage({ params }: Props) {
   const article = await findArticle(decodeURIComponent(code));
   if (!article) notFound();
 
-  const enquiry = whatsappLink(
-    `Hello ${brand.name}, I'd like to order article *${article.code}*` +
-      (article.name ? ` (${article.name})` : "") +
-      ". Is it available?",
-  );
-
   const related = (await listArticles({ collection: article.collection }))
     .filter((a) => a.id !== article.id)
     .slice(0, 4);
@@ -53,7 +48,7 @@ export default async function ArticlePage({ params }: Props) {
       <ShopHeader />
 
       <main className="mx-auto max-w-6xl px-4 py-8">
-        <Link href="/" className="mb-6 inline-flex items-center gap-1.5 text-sm text-sand-600 hover:text-emerald-800">
+        <Link href="/" className="mb-6 inline-flex items-center gap-1.5 text-sm text-shell-600 hover:text-ink-800">
           <span aria-hidden="true">←</span> The Collection
         </Link>
 
@@ -63,7 +58,7 @@ export default async function ArticlePage({ params }: Props) {
               article.photos.map((photo, index) => (
                 <div
                   key={photo.id}
-                  className="relative aspect-4/5 overflow-hidden rounded-lg border border-sand-200 bg-sand-100"
+                  className="relative aspect-4/5 overflow-hidden rounded-lg border border-shell-200 bg-shell-100"
                 >
                   <Image
                     src={photo.url}
@@ -76,7 +71,7 @@ export default async function ArticlePage({ params }: Props) {
                 </div>
               ))
             ) : (
-              <div className="grid aspect-4/5 place-items-center rounded-lg border border-sand-200 bg-sand-100 text-sand-300">
+              <div className="grid aspect-4/5 place-items-center rounded-lg border border-shell-200 bg-shell-100 text-shell-300">
                 <Icon name="image" size={32} />
               </div>
             )}
@@ -86,45 +81,57 @@ export default async function ArticlePage({ params }: Props) {
             <p className="eyebrow">{article.fabric || "Premium fabric"}</p>
             <h1 className="mt-2 text-4xl">
               {article.code}
-              {article.name && <span className="block text-2xl text-sand-600">{article.name}</span>}
+              {article.name && <span className="block text-2xl text-shell-600">{article.name}</span>}
             </h1>
 
-            <p className="numeric mt-5 font-display text-3xl text-emerald-800">
+            <p className="numeric mt-5 font-display text-3xl text-ink-800">
               {money(article.retail)}
             </p>
 
             {article.status !== "Available" && (
               <p
                 className={`mt-4 inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
-                  soldOut ? "bg-danger-soft text-danger" : "bg-gold-300/30 text-gold-700"
+                  soldOut ? "bg-danger-soft text-danger" : "bg-amber-300/30 text-amber-700"
                 }`}
               >
                 {article.status}
               </p>
             )}
 
-            <dl className="mt-7 divide-y divide-sand-200 border-y border-sand-200 text-sm">
+            <dl className="mt-7 divide-y divide-shell-200 border-y border-shell-200 text-sm">
               <Detail term="Stitching" value={article.stitch} />
               <Detail term="Pieces" value={article.pieces} />
               {article.fabric && <Detail term="Fabric" value={article.fabric} />}
-              {article.colours.length > 0 && (
-                <Detail term="Colours" value={article.colours.join(", ")} />
-              )}
               {article.collection && <Detail term="Collection" value={article.collection} />}
             </dl>
 
-            <a
-              href={enquiry}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="btn btn-primary mt-7 w-full"
-            >
-              <Icon name="whatsapp" size={17} />
-              {soldOut ? "Ask when it's back" : `Order ${article.code} on WhatsApp`}
-            </a>
+            {article.colours.length > 0 && (
+              <div className="mt-6">
+                <p className="eyebrow">Colours</p>
+                <ul className="mt-2 flex flex-wrap gap-2">
+                  {article.colours.map((colour) => (
+                    <li
+                      key={colour}
+                      className="rounded-full border border-shell-200 px-3 py-1 text-xs text-shell-900"
+                    >
+                      {colour}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
-            <p className="mt-3 text-center text-xs leading-relaxed text-sand-500">
-              Opens WhatsApp with the article code filled in.
+            {article.designNotes && (
+              <div className="mt-6">
+                <p className="eyebrow">Design notes</p>
+                <p className="mt-2 text-sm leading-relaxed text-shell-600">{article.designNotes}</p>
+              </div>
+            )}
+
+            <ArticlePdfButton article={article} />
+
+            <p className="mt-3 text-center text-xs leading-relaxed text-shell-500">
+              A one-page spec sheet with every photo, ready to print or forward.
             </p>
           </div>
         </div>
@@ -132,7 +139,7 @@ export default async function ArticlePage({ params }: Props) {
         {related.length > 0 && (
           <section className="mt-20">
             <h2 className="text-2xl">More from {article.collection}</h2>
-            <div className="rule-gold mt-4 w-40" />
+            <div className="rule-amber mt-4 w-40" />
             <ul className="mt-6 grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-4">
               {related.map((item) => (
                 <li key={item.id}>
@@ -152,8 +159,8 @@ export default async function ArticlePage({ params }: Props) {
 function Detail({ term, value }: { term: string; value: string }) {
   return (
     <div className="flex justify-between gap-4 py-2.5">
-      <dt className="text-sand-600">{term}</dt>
-      <dd className="text-right font-medium text-sand-900">{value}</dd>
+      <dt className="text-shell-600">{term}</dt>
+      <dd className="text-right font-medium text-shell-900">{value}</dd>
     </div>
   );
 }

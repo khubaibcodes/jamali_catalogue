@@ -19,10 +19,11 @@ export default function manifest(): MetadataRoute.Manifest {
     scope: "./",
     display: "standalone",
     orientation: "portrait",
-    background_color: palette.ivory,
-    theme_color: palette.emerald,
+    background_color: palette.paper,
+    theme_color: palette.ink,
     icons: [
-      { src: "./icon.svg", sizes: "any", type: "image/svg+xml", purpose: "any" },
+      // The real square mark, 807×807 with transparency.
+      { src: brand.logo.mark, sizes: "512x512", type: "image/png", purpose: "any" },
     ],
   };
 }

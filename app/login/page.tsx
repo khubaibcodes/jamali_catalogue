@@ -48,16 +48,16 @@ function SignInForm() {
     <main className="grid min-h-dvh place-items-center px-4 py-10">
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
-          <p className="wordmark text-2xl text-emerald-800">{brand.name}</p>
-          <div className="rule-gold mx-auto mt-3 w-40" />
-          <p className="mt-3 text-[0.6875rem] uppercase tracking-[0.2em] text-gold-700">
+          <p className="wordmark text-2xl text-ink-800">{brand.name}</p>
+          <div className="rule-amber mx-auto mt-3 w-40" />
+          <p className="mt-3 text-[0.6875rem] uppercase tracking-[0.2em] text-amber-700">
             {brand.purpose}
           </p>
         </div>
 
         <form onSubmit={submit} className="plate p-6">
           <h1 className="mb-1 text-2xl">Sign in</h1>
-          <p className="mb-5 text-sm text-sand-600">Staff access only.</p>
+          <p className="mb-5 text-sm text-shell-600">Staff access only.</p>
 
           <div className="space-y-4">
             <Field label="Email">
@@ -104,7 +104,7 @@ function SignInForm() {
           </button>
         </form>
 
-        <p className="mt-6 text-center text-xs text-sand-500">
+        <p className="mt-6 text-center text-xs text-shell-500">
           Accounts are created by the owner. There is no public sign-up.
         </p>
       </div>

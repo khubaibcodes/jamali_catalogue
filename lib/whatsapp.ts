@@ -20,7 +20,7 @@ export function replyFor(product: Product, tier: Tier): string {
     `*${brand.name}*`,
     joinParts([`Article: *${product.code}*`, product.name]),
     joinParts([product.fabric, product.stitch, product.pieces]),
-    product.colours ? `Colours: ${product.colours}` : null,
+    product.colours.length ? `Colours: ${product.colours.join(", ")}` : null,
     `${TIER_LABEL[tier]}: *${money(rate)}*`,
     tier === "wholesale" && product.moq ? `Minimum order: ${product.moq} pcs` : null,
     product.status === "Sold out" ? "Status: currently sold out" : null,

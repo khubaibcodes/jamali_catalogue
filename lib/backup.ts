@@ -106,7 +106,8 @@ export async function importBackup(
         collection: str(raw.collection),
         stitch: raw.stitch === "Stitched" ? "Stitched" : "Unstitched",
         pieces: pieces(raw.pieces),
-        colours: str(raw.colours),
+        colours: toColours(raw.colours ?? raw.colors),
+        designNotes: str(raw.designNotes ?? raw.design_notes),
         status: status(raw.status),
         prices: {
           retail: num(prices.retail),
@@ -152,6 +153,16 @@ export async function importBackup(
 }
 
 const str = (v: unknown): string => (typeof v === "string" ? v : "");
+
+/**
+ * Colours arrive either way: the old browser app wrote a comma-separated
+ * string, current exports write an array.
+ */
+const toColours = (v: unknown): string[] => {
+  if (Array.isArray(v)) return v.filter((c): c is string => typeof c === "string" && c.trim() !== "");
+  if (typeof v === "string") return v.split(",").map((c) => c.trim()).filter(Boolean);
+  return [];
+};
 const num = (v: unknown): number | null =>
   typeof v === "number" && Number.isFinite(v) ? v : null;
 
@@ -171,7 +182,7 @@ export function exportCsv(products: Product[], includeTradeRates: boolean): void
   ];
   const rows = products.map((p) => [
     p.code, p.name, p.category, p.collection, p.fabric, p.stitch, p.pieces,
-    p.colours, p.prices.retail ?? "",
+    p.colours.join(" | "), p.prices.retail ?? "",
     ...(includeTradeRates ? [p.prices.reseller ?? "", p.prices.wholesale ?? "", p.moq ?? ""] : []),
     p.status, p.published ? "yes" : "no", p.notes,
   ]);

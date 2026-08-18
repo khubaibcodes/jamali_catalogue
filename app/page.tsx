@@ -4,6 +4,7 @@ import { brand } from "@/lib/brand";
 import { browseFacets, listArticles } from "@/lib/shop";
 import { ArticleCard } from "@/components/shop/ArticleCard";
 import { ShopFooter, ShopHeader } from "@/components/shop/ShopChrome";
+import { CataloguePdfButton } from "@/components/shop/PdfButtons";
 
 export const metadata: Metadata = {
   title: `${brand.name} — ${brand.tagline}`,
@@ -37,11 +38,14 @@ export default async function ShopPage({
       <main className="mx-auto max-w-6xl px-4 py-10">
         <section className="mb-10 text-center">
           <h1 className="text-4xl sm:text-5xl">The Collection</h1>
-          <div className="rule-gold mx-auto mt-5 w-52" />
-          <p className="mx-auto mt-5 max-w-md text-sm leading-relaxed text-sand-600">
-            Every article is available to order on WhatsApp. Quote the article code and we&apos;ll
-            reply with availability.
+          <div className="rule-amber mx-auto mt-5 w-52" />
+          <p className="mx-auto mt-5 max-w-md text-sm leading-relaxed text-shell-600">
+            Every piece, with its article number, fabric and price. Download any article as a
+            spec sheet, or take the whole catalogue as a PDF.
           </p>
+          <div className="mt-7">
+            <CataloguePdfButton articles={articles} />
+          </div>
         </section>
 
         {(facets.categories.length > 1 || facets.collections.length > 0) && (
@@ -74,10 +78,10 @@ export default async function ShopPage({
             <h2 className="text-2xl">
               {filtering ? "Nothing in this collection yet" : "The collection is being prepared"}
             </h2>
-            <p className="mx-auto mt-3 max-w-sm text-sm leading-relaxed text-sand-600">
+            <p className="mx-auto mt-3 max-w-sm text-sm leading-relaxed text-shell-600">
               {filtering
                 ? "Try another collection, or view everything."
-                : "New articles are added regularly. Message us on WhatsApp and we'll send you what's in stock."}
+                : "New articles are added regularly. Do check back."}
             </p>
             {filtering && (
               <Link href="/" className="btn btn-quiet mt-6">
@@ -112,7 +116,7 @@ function FilterLink({
 }) {
   return (
     <Link href={href} className="chip" aria-current={active ? "true" : undefined} data-active={active}>
-      <span className={active ? "font-semibold text-emerald-800" : undefined}>{label}</span>
+      <span className={active ? "font-semibold text-ink-800" : undefined}>{label}</span>
     </Link>
   );
 }

@@ -205,8 +205,8 @@ export function CardStudio({
                       aria-label={`Use photo ${index + 1}`}
                       className={`size-14 overflow-hidden rounded-md border-2 transition-colors ${
                         settings.photoIndex === index
-                          ? "border-emerald-700"
-                          : "border-sand-200 hover:border-sand-300"
+                          ? "border-ink-700"
+                          : "border-shell-200 hover:border-shell-300"
                       }`}
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -225,7 +225,7 @@ export function CardStudio({
               value={options.format}
               onChange={(v) => set("format", v)}
             />
-            <p className="mt-2 text-xs leading-relaxed text-sand-600">
+            <p className="mt-2 text-xs leading-relaxed text-shell-600">
               Status is a tall 9:16. Instagram post is 4:5.
             </p>
           </Panel>
@@ -237,23 +237,23 @@ export function CardStudio({
               value={options.fit}
               onChange={(v) => set("fit", v)}
             />
-            <p className="mt-2 text-xs leading-relaxed text-sand-600">
-              <strong className="font-semibold text-sand-900">Whole garment</strong> never crops —
+            <p className="mt-2 text-xs leading-relaxed text-shell-600">
+              <strong className="font-semibold text-shell-900">Whole garment</strong> never crops —
               the gaps are filled with a blurred copy of the same photo.{" "}
-              <strong className="font-semibold text-sand-900">Fill the frame</strong> goes edge to
+              <strong className="font-semibold text-shell-900">Fill the frame</strong> goes edge to
               edge but may cut the sides.
             </p>
 
             <label className="mt-4 flex cursor-pointer items-start gap-3">
               <input
                 type="checkbox"
-                className="mt-0.5 size-4 accent-emerald-800"
+                className="mt-0.5 size-4 accent-ink-800"
                 checked={options.watermark}
                 onChange={(e) => set("watermark", e.target.checked)}
               />
               <span className="text-sm">
                 <span className="font-medium">Watermark the photo</span>
-                <span className="mt-0.5 block text-xs leading-relaxed text-sand-600">
+                <span className="mt-0.5 block text-xs leading-relaxed text-shell-600">
                   Tiles the wordmark faintly across the picture so other sellers can&apos;t reuse
                   your shot.
                 </span>
@@ -277,7 +277,7 @@ export function CardStudio({
                 </span>
               </p>
             ) : (
-              <p className="mt-2 text-xs leading-relaxed text-sand-600">
+              <p className="mt-2 text-xs leading-relaxed text-shell-600">
                 Safe for a public status or feed.
               </p>
             )}
@@ -296,7 +296,7 @@ export function CardStudio({
                   role="img"
                 />
                 {painting && (
-                  <div className="absolute inset-0 grid place-items-center rounded-lg bg-emerald-950/45 text-xs tracking-widest text-gold-300">
+                  <div className="absolute inset-0 grid place-items-center rounded-lg bg-ink-950/45 text-xs tracking-widest text-amber-300">
                     DRAWING…
                   </div>
                 )}
@@ -305,20 +305,20 @@ export function CardStudio({
               <div className="mx-auto mt-6 max-w-sm">
                 <button
                   type="button"
-                  className="btn btn-gold w-full"
+                  className="btn btn-amber w-full"
                   onClick={exportCard}
                   disabled={exporting || painting}
                 >
                   <Icon name="download" size={16} />
                   {exporting ? "Preparing…" : "Save / share card"}
                 </button>
-                <p className="mt-3 text-center text-xs leading-relaxed text-sand-50/60">
+                <p className="mt-3 text-center text-xs leading-relaxed text-shell-50/60">
                   On a phone this opens the share sheet. On a computer it downloads a 1080-wide PNG.
                 </p>
               </div>
             </div>
           ) : (
-            <div className="plate grid min-h-80 place-items-center p-8 text-center text-sm text-sand-600">
+            <div className="plate grid min-h-80 place-items-center p-8 text-center text-sm text-shell-600">
               Choose an article to see its card.
             </div>
           )}
@@ -333,7 +333,7 @@ export function CardStudio({
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="plate p-4">
-      <h2 className="mb-3 font-ui text-xs font-semibold uppercase tracking-[0.08em] text-emerald-800">
+      <h2 className="mb-3 font-ui text-xs font-semibold uppercase tracking-[0.08em] text-ink-800">
         {title}
       </h2>
       {children}

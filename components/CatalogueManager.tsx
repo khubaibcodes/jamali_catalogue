@@ -187,11 +187,11 @@ export function CatalogueManager({ session }: { session: Session }) {
 
   return (
     <div className="min-h-dvh">
-      <header className="sticky top-0 z-30 border-b border-sand-200 bg-sand-50/85 backdrop-blur-md">
+      <header className="sticky top-0 z-30 border-b border-shell-200 bg-shell-50/85 backdrop-blur-md">
         <div className="mx-auto flex max-w-6xl items-center gap-4 px-4 py-3">
           <div className="flex-1">
-            <p className="wordmark text-lg text-emerald-800 sm:text-xl">{brand.name}</p>
-            <p className="mt-0.5 text-[0.625rem] uppercase tracking-[0.2em] text-gold-700">
+            <p className="wordmark text-lg text-ink-800 sm:text-xl">{brand.name}</p>
+            <p className="mt-0.5 text-[0.625rem] uppercase tracking-[0.2em] text-amber-700">
               {brand.purpose}
             </p>
           </div>
@@ -207,7 +207,7 @@ export function CatalogueManager({ session }: { session: Session }) {
             ))}
           </nav>
 
-          <div className="hidden items-center gap-1 border-l border-sand-200 pl-2 md:flex">
+          <div className="hidden items-center gap-1 border-l border-shell-200 pl-2 md:flex">
             {hasProducts && (
               <>
                 <IconButton
@@ -235,21 +235,21 @@ export function CatalogueManager({ session }: { session: Session }) {
             />
           </div>
 
-          <div className="flex items-center gap-2 border-l border-sand-200 pl-2">
-            <span className="hidden text-xs text-sand-600 lg:block">
+          <div className="flex items-center gap-2 border-l border-shell-200 pl-2">
+            <span className="hidden text-xs text-shell-600 lg:block">
               {session.email}
-              <span className="ml-1 text-sand-500">({session.role})</span>
+              <span className="ml-1 text-shell-500">({session.role})</span>
             </span>
             <button type="button" className="btn btn-ghost btn-sm" onClick={() => void signOut()}>
               Sign out
             </button>
           </div>
         </div>
-        <div className="rule-gold" />
+        <div className="rule-amber" />
       </header>
 
       {importing && (
-        <p className="bg-emerald-800 px-4 py-2 text-center text-sm text-sand-50">
+        <p className="bg-ink-800 px-4 py-2 text-center text-sm text-shell-50">
           Importing — uploading photos can take a minute. Don&apos;t close this tab.
         </p>
       )}
@@ -258,7 +258,7 @@ export function CatalogueManager({ session }: { session: Session }) {
 
       <nav
         aria-label="Sections"
-        className="fixed inset-x-0 bottom-0 z-30 flex border-t border-sand-200 bg-sand-50/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md sm:hidden"
+        className="fixed inset-x-0 bottom-0 z-30 flex border-t border-shell-200 bg-shell-50/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md sm:hidden"
       >
         {NAV.map((item) => {
           const active = view === item.view;
@@ -269,7 +269,7 @@ export function CatalogueManager({ session }: { session: Session }) {
               aria-current={active ? "page" : undefined}
               onClick={() => (item.view === "editor" ? openEditor(null) : setView(item.view))}
               className={`flex flex-1 flex-col items-center gap-1 py-2.5 text-[0.6875rem] font-medium transition-colors ${
-                active ? "text-emerald-800" : "text-sand-500"
+                active ? "text-ink-800" : "text-shell-500"
               }`}
             >
               <Icon name={item.icon} size={20} />
@@ -279,7 +279,7 @@ export function CatalogueManager({ session }: { session: Session }) {
         })}
       </nav>
 
-      <footer className="border-t border-sand-200 px-4 py-6 text-center text-xs leading-relaxed text-sand-500 max-sm:hidden">
+      <footer className="border-t border-shell-200 px-4 py-6 text-center text-xs leading-relaxed text-shell-500 max-sm:hidden">
         <p>
           Stored in the Jamaali database. Signed in as {session.email}.
         </p>

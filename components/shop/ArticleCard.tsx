@@ -20,7 +20,7 @@ export function ArticleCard({ article, priority }: { article: ShopArticle; prior
       href={`/article/${encodeURIComponent(article.code.toLowerCase())}`}
       className="group block"
     >
-      <div className="relative aspect-4/5 overflow-hidden rounded-lg border border-sand-200 bg-sand-100">
+      <div className="relative aspect-4/5 overflow-hidden rounded-lg border border-shell-200 bg-shell-100">
         {cover ? (
           <Image
             src={cover.url}
@@ -31,7 +31,7 @@ export function ArticleCard({ article, priority }: { article: ShopArticle; prior
             className="object-cover transition-transform duration-500 group-hover:scale-[1.04]"
           />
         ) : (
-          <span className="grid size-full place-items-center text-sand-300">
+          <span className="grid size-full place-items-center text-shell-300">
             <Icon name="image" size={26} />
           </span>
         )}
@@ -39,7 +39,7 @@ export function ArticleCard({ article, priority }: { article: ShopArticle; prior
         {article.status !== "Available" && (
           <span
             className={`absolute left-3 top-3 rounded-full px-2.5 py-1 text-[0.625rem] font-semibold tracking-wide ${
-              soldOut ? "bg-danger text-white" : "bg-gold-300 text-emerald-950"
+              soldOut ? "bg-danger text-white" : "bg-amber-300 text-ink-950"
             }`}
           >
             {article.status.toUpperCase()}
@@ -48,16 +48,28 @@ export function ArticleCard({ article, priority }: { article: ShopArticle; prior
       </div>
 
       <div className="mt-3">
-        <div className="flex items-baseline justify-between gap-2">
-          <h3 className="font-ui text-sm font-semibold tracking-wide text-emerald-800">
-            {article.code}
-          </h3>
-          <p className="numeric font-display text-lg text-sand-900">{money(article.retail)}</p>
-        </div>
-        {article.name && <p className="mt-0.5 text-sm text-sand-900">{article.name}</p>}
-        <p className="mt-0.5 text-xs text-sand-600">
-          {[article.fabric, article.stitch, article.pieces].filter(Boolean).join(" · ")}
+        {article.name ? (
+          <h3 className="text-sm font-medium leading-snug text-shell-900">{article.name}</h3>
+        ) : (
+          <h3 className="text-sm font-medium leading-snug text-shell-900">{article.code}</h3>
+        )}
+
+        <p className="mt-1 font-ui text-[0.6875rem] tracking-[0.12em] text-shell-500">
+          {article.code}
         </p>
+
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          {article.fabric && (
+            <span className="rounded-full bg-shell-100 px-2 py-0.5 text-[0.625rem] text-shell-600">
+              {article.fabric}
+            </span>
+          )}
+          <span className="rounded-full bg-shell-100 px-2 py-0.5 text-[0.625rem] text-shell-600">
+            {article.pieces}
+          </span>
+        </div>
+
+        <p className="numeric mt-2 text-sm font-semibold text-ink-900">{money(article.retail)}</p>
       </div>
     </Link>
   );

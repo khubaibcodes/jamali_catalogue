@@ -19,7 +19,7 @@ import type { Pieces, Product, ProductDraft, Status, Stitch } from "./types";
 type Client = SupabaseClient<Database>;
 
 const PRODUCT_COLUMNS =
-  "id, code, name, fabric, category, collection, stitch, pieces, colours, status, retail_price, notes, published, created_at, updated_at";
+  "id, code, name, fabric, category, collection, stitch, pieces, colors, design_notes, status, retail_price, notes, published, created_at, updated_at";
 
 /* ------------------------------------------------------------------ read */
 
@@ -65,7 +65,8 @@ export async function saveProduct(
     collection: draft.collection,
     stitch: draft.stitch,
     pieces: draft.pieces,
-    colours: draft.colours,
+    colors: draft.colours,
+    design_notes: draft.designNotes,
     status: draft.status,
     retail_price: draft.prices.retail,
     notes: draft.notes,
@@ -180,7 +181,8 @@ function toProduct(row: ProductRow, rate: TradeRateRow | undefined, photos: Phot
     collection: row.collection,
     stitch: row.stitch as Stitch,
     pieces: row.pieces as Pieces,
-    colours: row.colours,
+    colours: row.colors ?? [],
+    designNotes: row.design_notes ?? "",
     status: row.status as Status,
     prices: {
       retail: row.retail_price,

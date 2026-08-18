@@ -141,10 +141,10 @@ export function goldSheen(
   y2: number,
 ): CanvasGradient {
   const g = ctx.createLinearGradient(x1, y1, x2, y2);
-  g.addColorStop(0, "#8A6D34");
-  g.addColorStop(0.35, "#E3C88A");
-  g.addColorStop(0.62, "#F3E4BC");
-  g.addColorStop(1, "#A8843F");
+  g.addColorStop(0, "#C4862A");
+  g.addColorStop(0.35, "#F2B168");
+  g.addColorStop(0.62, "#FBEBD4");
+  g.addColorStop(1, "#C4862A");
   return g;
 }
 

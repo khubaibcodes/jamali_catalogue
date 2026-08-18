@@ -29,9 +29,9 @@ const TIER_LABEL: Record<Tier, string> = {
 };
 
 const STATUS_BADGE: Record<Status, string> = {
-  Available: "badge-emerald",
-  New: "badge-gold",
-  "Low stock": "badge-gold",
+  Available: "badge-ink",
+  New: "badge-amber",
+  "Low stock": "badge-amber",
   "Sold out": "badge-danger",
 };
 
@@ -72,7 +72,7 @@ export function CatalogueView({
       if (category !== "All" && p.category !== category) return false;
       if (collection !== "All" && p.collection !== collection) return false;
       if (!needle) return true;
-      return [p.code, p.name, p.fabric, p.colours, p.collection, p.notes]
+      return [p.code, p.name, p.fabric, p.colours.join(" "), p.collection, p.notes]
         .join(" ")
         .toLowerCase()
         .includes(needle);
@@ -159,7 +159,7 @@ export function CatalogueView({
             <Icon
               name="search"
               size={17}
-              className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-sand-500"
+              className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-shell-500"
             />
             <input
               type="search"
@@ -199,7 +199,7 @@ export function CatalogueView({
         </div>
 
         {(categories.length > 1 || collections.length > 1) && (
-          <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 border-t border-sand-100 pt-3">
+          <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 border-t border-shell-100 pt-3">
             <FilterRow
               label="Category"
               options={categories}
@@ -254,7 +254,7 @@ export function CatalogueView({
         </ul>
       )}
 
-      <p className="mt-8 text-center text-xs text-sand-500">
+      <p className="mt-8 text-center text-xs text-shell-500">
         Showing {visible.length} of {products.length}
       </p>
     </div>
@@ -283,22 +283,22 @@ function ProductRow({
   onNotify: (message: string, tone?: "info" | "success" | "error") => void;
 }) {
   const cover = product.photos[0]?.url;
-  const description = joinParts([product.fabric, product.pieces, product.colours]);
+  const description = joinParts([product.fabric, product.pieces, product.colours.join(", ")]);
 
   return (
     <li className="plate animate-rise flex flex-col overflow-hidden transition-shadow hover:shadow-lift">
       <div className="flex gap-4 p-4">
-        <div className="relative size-24 shrink-0 overflow-hidden rounded-md border border-sand-200 bg-sand-100">
+        <div className="relative size-24 shrink-0 overflow-hidden rounded-md border border-shell-200 bg-shell-100">
           {cover ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={cover} alt="" className="size-full object-cover" />
           ) : (
-            <span className="grid size-full place-items-center text-sand-300">
+            <span className="grid size-full place-items-center text-shell-300">
               <Icon name="image" size={20} />
             </span>
           )}
           {product.photos.length > 1 && (
-            <span className="absolute bottom-1 right-1 rounded bg-emerald-950/75 px-1.5 py-0.5 text-[0.625rem] font-semibold text-sand-50">
+            <span className="absolute bottom-1 right-1 rounded bg-ink-950/75 px-1.5 py-0.5 text-[0.625rem] font-semibold text-shell-50">
               {product.photos.length}
             </span>
           )}
@@ -306,46 +306,46 @@ function ProductRow({
 
         <div className="flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="font-ui text-lg font-semibold tracking-wide text-emerald-800">
+            <h3 className="font-ui text-lg font-semibold tracking-wide text-ink-800">
               {product.code}
             </h3>
-            <span className="badge badge-emerald">{product.stitch}</span>
+            <span className="badge badge-ink">{product.stitch}</span>
             {product.status !== "Available" && (
               <span className={`badge ${STATUS_BADGE[product.status]}`}>{product.status}</span>
             )}
             {!product.published && (
-              <span className="badge badge-gold" title="Not visible to customers">
+              <span className="badge badge-amber" title="Not visible to customers">
                 Draft
               </span>
             )}
           </div>
 
-          {product.name && <p className="mt-0.5 text-sm text-sand-900">{product.name}</p>}
-          <p className="mt-1 text-sm text-sand-600">{description || "No details yet"}</p>
+          {product.name && <p className="mt-0.5 text-sm text-shell-900">{product.name}</p>}
+          <p className="mt-1 text-sm text-shell-600">{description || "No details yet"}</p>
 
           <dl className="mt-2.5 flex flex-wrap gap-x-5 gap-y-1 text-sm">
             <div className="flex items-baseline gap-1.5">
-              <dt className="text-xs text-sand-500">{TIER_LABEL[tier]}</dt>
-              <dd className="numeric font-semibold text-sand-900">{money(product.prices[tier])}</dd>
+              <dt className="text-xs text-shell-500">{TIER_LABEL[tier]}</dt>
+              <dd className="numeric font-semibold text-shell-900">{money(product.prices[tier])}</dd>
             </div>
             {tier === "wholesale" && product.moq && (
               <div className="flex items-baseline gap-1.5">
-                <dt className="text-xs text-sand-500">Min</dt>
-                <dd className="numeric text-sand-900">{product.moq} pcs</dd>
+                <dt className="text-xs text-shell-500">Min</dt>
+                <dd className="numeric text-shell-900">{product.moq} pcs</dd>
               </div>
             )}
             <div className="flex items-baseline gap-1.5">
               <dt className="sr-only">Updated</dt>
-              <dd className="text-xs text-sand-500">{timeAgo(product.updatedAt)}</dd>
+              <dd className="text-xs text-shell-500">{timeAgo(product.updatedAt)}</dd>
             </div>
           </dl>
         </div>
       </div>
 
-      <div className="mt-auto flex flex-wrap gap-1 border-t border-sand-100 bg-sand-50/60 px-3 py-2">
+      <div className="mt-auto flex flex-wrap gap-1 border-t border-shell-100 bg-shell-50/60 px-3 py-2">
         <button
           type="button"
-          className="btn btn-gold btn-sm"
+          className="btn btn-amber btn-sm"
           onClick={() =>
             copy(replyFor(product, tier)).then((ok) =>
               onNotify(
@@ -392,12 +392,12 @@ function Stat({ value, label, warn = false }: { value: number; label: string; wa
     <div className="plate p-3.5">
       <p
         className={`numeric font-display text-2xl leading-none ${
-          warn ? "text-gold-700" : "text-emerald-800"
+          warn ? "text-amber-700" : "text-ink-800"
         }`}
       >
         {value}
       </p>
-      <p className="mt-1.5 text-xs text-sand-600">{label}</p>
+      <p className="mt-1.5 text-xs text-shell-600">{label}</p>
     </div>
   );
 }

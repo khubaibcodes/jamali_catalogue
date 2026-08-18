@@ -23,7 +23,7 @@ import type { Photo, Pieces, Status, Stitch } from "./types";
  * silently disappeared from the shopfront.
  */
 const PUBLIC_COLUMNS =
-  "id, code, name, fabric, category, collection, stitch, pieces, colours, status, retail_price, updated_at";
+  "id, code, name, fabric, category, collection, stitch, pieces, colors, design_notes, status, retail_price, updated_at";
 
 const PUBLIC_PHOTO_COLUMNS = "id, product_id, storage_path, width, height, position";
 
@@ -37,6 +37,8 @@ export interface ShopArticle {
   stitch: Stitch;
   pieces: Pieces;
   colours: string[];
+  /** Customer-facing. The internal `notes` column is never selected here. */
+  designNotes: string;
   status: Status;
   retail: number | null;
   photos: Photo[];
@@ -128,7 +130,8 @@ function toArticle(row: ProductRow, photos: PhotoRow[]): ShopArticle {
     collection: row.collection,
     stitch: row.stitch as Stitch,
     pieces: row.pieces as Pieces,
-    colours: row.colours.split(",").map((c) => c.trim()).filter(Boolean),
+    colours: row.colors ?? [],
+    designNotes: row.design_notes ?? "",
     status: row.status as Status,
     retail: row.retail_price,
     photos: photos.map((p) => ({ id: p.id, path: p.storage_path, url: publicUrl(p.storage_path) })),

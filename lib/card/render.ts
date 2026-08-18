@@ -91,16 +91,16 @@ export async function renderCard(
   /* ---------------------------------------------------------------- ground */
 
   const base = ctx.createLinearGradient(0, 0, 0, H);
-  base.addColorStop(0, palette.emerald);
-  base.addColorStop(0.5, "#0C3729");
-  base.addColorStop(1, palette.emeraldDeep);
+  base.addColorStop(0, palette.cocoa);
+  base.addColorStop(0.5, "#3D2922");
+  base.addColorStop(1, palette.cocoaDeep);
   ctx.fillStyle = base;
   ctx.fillRect(0, 0, W, H);
 
   // A soft halo behind the photo lifts the subject off the flat field.
   const halo = ctx.createRadialGradient(centreX, H * 0.4, 60, centreX, H * 0.42, W * 0.85);
-  halo.addColorStop(0, "rgba(36,110,86,0.55)");
-  halo.addColorStop(1, "rgba(7,28,22,0)");
+  halo.addColorStop(0, "rgba(92,64,52,0.55)");
+  halo.addColorStop(1, "rgba(20,16,14,0)");
   ctx.fillStyle = halo;
   ctx.fillRect(0, 0, W, H);
 
@@ -111,7 +111,7 @@ export async function renderCard(
   ctx.lineWidth = 1.5;
   ctx.strokeRect(M, M, W - M * 2, H - M * 2);
   const arm = 26;
-  const gold = "rgba(227,200,138,0.75)";
+  const gold = "rgba(242,177,104,0.75)";
   cornerMark(ctx, M + 16, M + 16, 1, 1, arm, gold);
   cornerMark(ctx, W - M - 16, M + 16, -1, 1, arm, gold);
   cornerMark(ctx, M + 16, H - M - 16, 1, -1, arm, gold);
@@ -122,13 +122,13 @@ export async function renderCard(
   const headerEnd = s(292);
   drawText(ctx, brand.name, centreX, s(150), {
     font: serif(s(58), 600),
-    fill: palette.ivory,
+    fill: palette.paper,
     tracking: s(22),
   });
-  divider(ctx, centreX, s(196), s(150), "rgba(227,200,138,0.5)", goldSheen(ctx, centreX - 8, s(190), centreX + 8, s(202)));
+  divider(ctx, centreX, s(196), s(150), "rgba(242,177,104,0.5)", goldSheen(ctx, centreX - 8, s(190), centreX + 8, s(202)));
   drawText(ctx, brand.tagline, centreX, s(242), {
     font: serif(s(27), 400, true),
-    fill: "rgba(227,200,138,0.9)",
+    fill: "rgba(242,177,104,0.9)",
     tracking: s(2),
   });
 
@@ -136,7 +136,7 @@ export async function renderCard(
 
   const footerH = s(168);
   const footerBaseline = H - s(84);
-  divider(ctx, centreX, H - s(140), s(180), "rgba(227,200,138,0.3)", "rgba(227,200,138,0.55)");
+  divider(ctx, centreX, H - s(140), s(180), "rgba(242,177,104,0.3)", "rgba(242,177,104,0.55)");
   drawText(ctx, brand.cardFooter, centreX, footerBaseline, {
     font: sans(s(23), 500),
     fill: "rgba(251,248,242,0.72)",
@@ -145,7 +145,8 @@ export async function renderCard(
 
   /* ------------------------------------------------------- caption metrics */
 
-  const meta = joinParts([product.pieces, product.colours]);
+  // Colours are an array now; joining here stops it stringifying as "A,B".
+  const meta = joinParts([product.pieces, product.colours.join(", ")]);
   const captionRows = [s(76), s(78), meta ? s(52) : 0, s(88)];
   const captionH = captionRows.reduce((a, b) => a + b, 0) + s(26);
 
@@ -173,19 +174,19 @@ export async function renderCard(
     }
     if (options.watermark) drawWatermark(ctx, px, py, pw, ph, serif(s(52), 600));
   } else {
-    ctx.fillStyle = palette.emeraldMid;
+    ctx.fillStyle = palette.cocoaMid;
     ctx.fillRect(px, py, pw, ph);
     drawText(ctx, "PHOTO NOT ADDED", centreX, py + ph / 2, {
       font: sans(s(28), 600),
-      fill: "rgba(227,200,138,0.6)",
+      fill: "rgba(242,177,104,0.6)",
       tracking: s(6),
     });
   }
 
   // A gentle bottom shade so badges and the caption edge stay legible.
   const shade = ctx.createLinearGradient(0, py + ph - s(180), 0, py + ph);
-  shade.addColorStop(0, "rgba(7,28,22,0)");
-  shade.addColorStop(1, "rgba(7,28,22,0.55)");
+  shade.addColorStop(0, "rgba(20,16,14,0)");
+  shade.addColorStop(1, "rgba(20,16,14,0.55)");
   ctx.fillStyle = shade;
   ctx.fillRect(px, py + ph - s(180), pw, s(180));
   ctx.restore();
@@ -195,7 +196,7 @@ export async function renderCard(
   const badgeY = py + s(24);
   pill(ctx, product.stitch.toUpperCase(), px + s(24), "left", badgeY, s(24), {
     background: goldSheen(ctx, px, badgeY, px + s(300), badgeY),
-    text: palette.emeraldDeep,
+    text: palette.cocoaDeep,
     font: sans(s(24), 700),
   });
   if (product.status !== "Available") {
@@ -213,7 +214,7 @@ export async function renderCard(
   y += captionRows[0];
   drawText(ctx, (product.fabric || "PREMIUM FABRIC").toUpperCase(), centreX, y, {
     font: sans(s(26), 600),
-    fill: "rgba(227,200,138,0.92)",
+    fill: "rgba(242,177,104,0.92)",
     tracking: s(8),
   });
 
@@ -222,7 +223,7 @@ export async function renderCard(
   const titleFit = fitText(ctx, title, contentW - s(40), (n) => serif(n, 500), s(70), s(38));
   drawText(ctx, titleFit.text, centreX, y, {
     font: serif(titleFit.size, 500),
-    fill: palette.ivory,
+    fill: palette.paper,
   });
 
   if (meta) {
@@ -259,7 +260,7 @@ function drawPrice(
   if (mode === "hidden") {
     drawText(ctx, "DM FOR PRICE", cx, y, {
       font: sans(s(38), 600),
-      fill: "rgba(227,200,138,0.95)",
+      fill: "rgba(242,177,104,0.95)",
       tracking: s(10),
     });
     return;
@@ -269,7 +270,7 @@ function drawPrice(
   if (label) {
     drawText(ctx, label, cx, y - s(58), {
       font: sans(s(20), 600),
-      fill: "rgba(227,200,138,0.7)",
+      fill: "rgba(242,177,104,0.7)",
       tracking: s(6),
     });
   }
@@ -357,7 +358,7 @@ function drawContain(
 
   // Emerald wash keeps the backdrop on-brand whatever the photo's colours are.
   ctx.save();
-  ctx.fillStyle = "rgba(9,42,32,0.5)";
+  ctx.fillStyle = "rgba(46,31,26,0.5)";
   ctx.fillRect(x, y, w, h);
   ctx.restore();
 

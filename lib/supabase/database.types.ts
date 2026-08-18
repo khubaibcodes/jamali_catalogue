@@ -23,7 +23,8 @@ export type Database = {
           fabric: string;
           category: string;
           collection: string;
-          colours: string;
+          colors: string[];
+          design_notes: string;
           notes: string;
           published: boolean;
           retail_price: number | null;
@@ -40,7 +41,8 @@ export type Database = {
           fabric?: string;
           category?: string;
           collection?: string;
-          colours?: string;
+          colors?: string[];
+          design_notes?: string;
           notes?: string;
           published?: boolean;
           retail_price?: number | null;

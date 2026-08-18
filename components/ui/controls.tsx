@@ -38,7 +38,7 @@ export function Field({
       </label>
       {children({ id, describedBy, invalid: Boolean(error) })}
       {hint && !error && (
-        <p id={hintId} className="mt-1.5 text-xs leading-relaxed text-sand-600">
+        <p id={hintId} className="mt-1.5 text-xs leading-relaxed text-shell-600">
           {hint}
         </p>
       )}
@@ -124,8 +124,8 @@ export function Segmented<T extends string>({
 /* ------------------------------------------------------------------ toast */
 
 const TONE_STYLES = {
-  info: "bg-emerald-900 text-sand-50 border-emerald-700",
-  success: "bg-emerald-800 text-sand-50 border-gold-500/50",
+  info: "bg-ink-900 text-shell-50 border-ink-700",
+  success: "bg-ink-800 text-shell-50 border-amber-500/50",
   error: "bg-danger text-white border-white/25",
 } as const;
 
@@ -181,20 +181,20 @@ export function ConfirmDialog({
   if (!open) return null;
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-emerald-950/45 p-4 backdrop-blur-sm sm:items-center"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-ink-950/45 p-4 backdrop-blur-sm sm:items-center"
       onClick={onCancel}
     >
       <div
         role="alertdialog"
         aria-modal="true"
         aria-labelledby="confirm-title"
-        className="animate-rise w-full max-w-sm rounded-xl border border-sand-200 bg-white p-6 shadow-lift"
+        className="animate-rise w-full max-w-sm rounded-xl border border-shell-200 bg-white p-6 shadow-lift"
         onClick={(event) => event.stopPropagation()}
       >
         <h2 id="confirm-title" className="text-xl">
           {title}
         </h2>
-        <p className="mt-2 text-sm leading-relaxed text-sand-600">{body}</p>
+        <p className="mt-2 text-sm leading-relaxed text-shell-600">{body}</p>
         <div className="mt-6 flex justify-end gap-2">
           <button type="button" className="btn btn-quiet" onClick={onCancel} autoFocus>
             Keep it
@@ -228,11 +228,11 @@ export function EmptyState({
 }) {
   return (
     <div className="flex flex-col items-center px-6 py-20 text-center">
-      <span className="mb-5 grid size-14 place-items-center rounded-full border border-sand-200 bg-white text-gold-500 shadow-plate">
+      <span className="mb-5 grid size-14 place-items-center rounded-full border border-shell-200 bg-white text-amber-500 shadow-plate">
         <Icon name={icon} size={22} />
       </span>
       <h2 className="text-2xl">{title}</h2>
-      <p className="mt-2 max-w-sm text-sm leading-relaxed text-sand-600">{body}</p>
+      <p className="mt-2 max-w-sm text-sm leading-relaxed text-shell-600">{body}</p>
       {action && <div className="mt-6">{action}</div>}
     </div>
   );
