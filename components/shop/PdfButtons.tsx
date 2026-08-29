@@ -7,9 +7,10 @@
  * rather than shipped with the shopfront. A customer who only browses never
  * downloads it.
  *
- * Photos come from Supabase Storage, which serves permissive CORS headers, so
- * react-pdf can embed them directly. This is the same constraint that governs
- * the canvas card export — cross-origin images without CORS cannot be read.
+ * Photos come from Supabase Storage as WebP, which react-pdf cannot decode, so
+ * they are transcoded to JPEG first — see lib/pdf/images.ts. Storage serves
+ * permissive CORS headers, which is what makes that canvas step legal; it is
+ * the same constraint that governs the card export.
  */
 
 import { useState } from "react";
@@ -41,12 +42,16 @@ export function ArticlePdfButton({ article }: { article: ShopArticle }) {
     setBusy(true);
     setError(null);
     try {
-      const [{ pdf }, { ArticleDocument }] = await Promise.all([
+      const [{ pdf }, { ArticleDocument }, { withEmbeddablePhotos }] = await Promise.all([
         import("@react-pdf/renderer"),
         import("@/lib/pdf/documents"),
+        import("@/lib/pdf/images"),
       ]);
+      // Photos are stored as WebP, which react-pdf cannot decode. Transcode
+      // before rendering or the pages come out blank.
+      const [ready] = await withEmbeddablePhotos([article]);
       const blob = await pdf(
-        <ArticleDocument article={article} logoUrl={absolute(brand.logo.wordmark)} />,
+        <ArticleDocument article={ready} logoUrl={absolute(brand.logo.wordmark)} />,
       ).toBlob();
       save(blob, `jamaali-${slug(article.code)}.pdf`);
     } catch {
@@ -79,12 +84,14 @@ export function CataloguePdfButton({ articles }: { articles: ShopArticle[] }) {
     setBusy(true);
     setError(null);
     try {
-      const [{ pdf }, { CatalogueDocument }] = await Promise.all([
+      const [{ pdf }, { CatalogueDocument }, { withEmbeddablePhotos }] = await Promise.all([
         import("@react-pdf/renderer"),
         import("@/lib/pdf/documents"),
+        import("@/lib/pdf/images"),
       ]);
+      const ready = await withEmbeddablePhotos(articles);
       const blob = await pdf(
-        <CatalogueDocument articles={articles} logoUrl={absolute(brand.logo.wordmark)} />,
+        <CatalogueDocument articles={ready} logoUrl={absolute(brand.logo.wordmark)} />,
       ).toBlob();
       const stamp = new Date().toISOString().slice(0, 7);
       save(blob, `jamaali-catalogue-${stamp}.pdf`);
