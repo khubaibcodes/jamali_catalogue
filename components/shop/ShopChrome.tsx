@@ -28,6 +28,22 @@ export function ShopFooter() {
     <footer className="mt-24 border-t border-shell-200 px-4 py-12 text-center">
       <Wordmark height={26} className="mx-auto h-5 w-auto opacity-90" />
       <p className="mt-4 text-xs tracking-[0.14em] text-shell-500 uppercase">{brand.website}</p>
+
+      {/*
+        The only way into the manager from the shopfront. Deliberately quiet —
+        customers have no use for it — but always reachable, so staff never have
+        to remember a URL.
+
+        One link covers both states: the proxy sends an already-signed-in user
+        straight from /login to /admin, so there is nothing to branch on here
+        and no session lookup on a public page.
+      */}
+      <Link
+        href="/login"
+        className="mt-8 inline-block text-xs tracking-[0.14em] text-shell-400 uppercase underline-offset-4 transition-colors hover:text-shell-600 hover:underline focus-visible:text-shell-600 focus-visible:underline focus-visible:outline-none"
+      >
+        Staff sign in
+      </Link>
     </footer>
   );
 }

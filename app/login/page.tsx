@@ -2,6 +2,7 @@
 
 import { Suspense, useState, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { brand } from "@/lib/brand";
 import { browserClient } from "@/lib/supabase/clients";
 import { Field } from "@/components/ui/controls";
@@ -106,6 +107,16 @@ function SignInForm() {
 
         <p className="mt-6 text-center text-xs text-shell-500">
           Accounts are created by the owner. There is no public sign-up.
+        </p>
+
+        {/* A customer who taps the footer link out of curiosity needs a way back. */}
+        <p className="mt-4 text-center">
+          <Link
+            href="/"
+            className="text-xs tracking-[0.14em] text-shell-400 uppercase underline-offset-4 transition-colors hover:text-shell-600 hover:underline"
+          >
+            Back to the catalogue
+          </Link>
         </p>
       </div>
     </main>
