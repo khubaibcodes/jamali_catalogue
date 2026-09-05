@@ -32,6 +32,16 @@ import { Icon } from "./ui/Icon";
 /** Fields that carry over to the next article, kept on the device. */
 const STICKY_KEY = "jamaali-quickadd-sticky";
 
+/** Matches the ceiling the full editor already enforces. */
+const MAX_PHOTOS = 8;
+
+/** A picked picture, before it has been uploaded. */
+interface Shot {
+  id: string;
+  file: File;
+  url: string;
+}
+
 interface Sticky {
   collection: string;
   category: string;
@@ -62,12 +72,15 @@ export function QuickAdd({ session }: { session: Session }) {
   const [sticky, setSticky] = useState<Sticky>(DEFAULT_STICKY);
   const [code, setCode] = useState("");
   const [price, setPrice] = useState("");
-  // File and its preview URL are held together so the old URL can always be
-  // revoked when it's replaced — an object URL leaks until it is.
-  const [photo, setPhoto] = useState<{ file: File; url: string } | null>(null);
+  // Ordered: index 0 is the cover. File and preview URL travel together so the
+  // URL can always be revoked — an object URL leaks until it is.
+  const [photos, setPhotos] = useState<Shot[]>([]);
   const [status, setStatus] = useState<Status>({ kind: "idle" });
 
+  // Two inputs, because one element cannot offer both the camera and a
+  // multi-select gallery: `capture` forces the camera and suppresses multiple.
   const cameraInput = useRef<HTMLInputElement>(null);
+  const galleryInput = useRef<HTMLInputElement>(null);
   const codeInput = useRef<HTMLInputElement>(null);
 
   /*
@@ -99,23 +112,52 @@ export function QuickAdd({ session }: { session: Session }) {
     });
   };
 
-  // Mirrors the live preview URL so unmount can revoke it without setState.
-  const liveUrl = useRef<string | null>(null);
+  // Every object URL handed out, so unmount can revoke them without setState.
+  const liveUrls = useRef<Set<string>>(new Set());
 
-  /** Swaps the picture, revoking whatever URL it replaces. */
-  const pickPhoto = (file: File | null) => {
-    if (liveUrl.current) URL.revokeObjectURL(liveUrl.current);
-    liveUrl.current = file ? URL.createObjectURL(file) : null;
-    setPhoto(file && liveUrl.current ? { file, url: liveUrl.current } : null);
+  /** Adds files to the end of the list, first one becoming the cover. */
+  const addPhotos = (files: FileList | null) => {
+    if (!files?.length) return;
+    const picked = Array.from(files).slice(0, MAX_PHOTOS);
+    const shots: Shot[] = picked.map((file) => {
+      const url = URL.createObjectURL(file);
+      liveUrls.current.add(url);
+      return { id: `${file.name}-${file.lastModified}-${Math.random()}`, file, url };
+    });
+    setPhotos((prev) => [...prev, ...shots].slice(0, MAX_PHOTOS));
   };
 
-  // Release the last URL when leaving the page.
-  useEffect(
-    () => () => {
-      if (liveUrl.current) URL.revokeObjectURL(liveUrl.current);
-    },
-    [],
-  );
+  const removePhoto = (id: string) =>
+    setPhotos((prev) =>
+      prev.filter((shot) => {
+        if (shot.id !== id) return true;
+        URL.revokeObjectURL(shot.url);
+        liveUrls.current.delete(shot.url);
+        return false;
+      }),
+    );
+
+  /** Promotes a picture to position 0 — the cover used everywhere else. */
+  const makeCover = (id: string) =>
+    setPhotos((prev) => {
+      const picked = prev.find((shot) => shot.id === id);
+      return picked ? [picked, ...prev.filter((shot) => shot.id !== id)] : prev;
+    });
+
+  const clearPhotos = () => {
+    for (const url of liveUrls.current) URL.revokeObjectURL(url);
+    liveUrls.current.clear();
+    setPhotos([]);
+  };
+
+  // Release every URL when leaving the page.
+  useEffect(() => {
+    const urls = liveUrls.current;
+    return () => {
+      for (const url of urls) URL.revokeObjectURL(url);
+      urls.clear();
+    };
+  }, []);
 
   async function save() {
     const articleCode = code.trim().toUpperCase();
@@ -151,18 +193,42 @@ export function QuickAdd({ session }: { session: Session }) {
         session.canSeeTradeRates,
       );
 
-      if (photo) {
-        setStatus({ kind: "saving", step: "Uploading the photo…" });
-        const path = await uploadPhoto(supabase, saved.code, photo.file);
-        await repo.addPhotoRow(supabase, saved.id, path, 0);
+      // Uploaded in order so `position` matches what's on screen, index 0
+      // being the cover. Sequential rather than parallel: a phone on mobile
+      // data handles one large upload far better than six at once.
+      let uploaded = 0;
+      for (const [index, shot] of photos.entries()) {
+        setStatus({
+          kind: "saving",
+          step: `Uploading photo ${index + 1} of ${photos.length}…`,
+        });
+        try {
+          const path = await uploadPhoto(supabase, saved.code, shot.file);
+          await repo.addPhotoRow(supabase, saved.id, path, index);
+          uploaded += 1;
+        } catch {
+          // The article is already saved; losing one picture must not discard
+          // the rest or the typing. Report it and carry on.
+        }
       }
+
+      const missed = photos.length - uploaded;
 
       // Clear only what changes per article. The rack is usually the same kind.
       setCode("");
       setPrice("");
-      pickPhoto(null);
+      clearPhotos();
       if (cameraInput.current) cameraInput.current.value = "";
-      setStatus({ kind: "saved", code: saved.code });
+      if (galleryInput.current) galleryInput.current.value = "";
+
+      if (missed > 0) {
+        setStatus({
+          kind: "error",
+          message: `${saved.code} saved, but ${missed} photo(s) failed to upload. Add them from the article list.`,
+        });
+      } else {
+        setStatus({ kind: "saved", code: saved.code });
+      }
       codeInput.current?.focus();
     } catch (e) {
       setStatus({
@@ -187,39 +253,110 @@ export function QuickAdd({ session }: { session: Session }) {
         </Link>
       </header>
 
-      {/* ------------------------------------------------------------ photo */}
-      <button
-        type="button"
-        onClick={() => cameraInput.current?.click()}
-        disabled={busy}
-        className="relative block aspect-4/5 w-full overflow-hidden rounded-xl border-2 border-dashed border-shell-300 bg-shell-100 transition-colors active:border-ink-700"
-      >
-        {photo ? (
-          <>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={photo.url} alt="" className="size-full object-cover" />
-            <span className="absolute bottom-3 right-3 rounded-full bg-ink-900/85 px-3 py-1.5 text-xs font-medium text-white">
-              Retake
-            </span>
-          </>
-        ) : (
-          <span className="flex size-full flex-col items-center justify-center gap-3 text-shell-600">
-            <Icon name="image" size={40} />
-            <span className="text-base font-medium">Tap to photograph</span>
-            <span className="text-xs">Opens the rear camera</span>
-          </span>
-        )}
-      </button>
+      {/* ----------------------------------------------------------- photos */}
+      {photos.length === 0 ? (
+        <div className="grid aspect-4/5 w-full place-items-center rounded-xl border-2 border-dashed border-shell-300 bg-shell-100 text-shell-600">
+          <div className="text-center">
+            <Icon name="image" size={40} className="mx-auto" />
+            <p className="mt-3 text-base font-medium">No photos yet</p>
+            <p className="mt-1 text-xs">Shoot one, or pick several from the gallery</p>
+          </div>
+        </div>
+      ) : (
+        <ul className="grid grid-cols-3 gap-2">
+          {photos.map((shot, index) => (
+            <li key={shot.id} className="relative">
+              <div className="aspect-4/5 overflow-hidden rounded-lg border border-shell-200 bg-shell-100">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={shot.url} alt="" className="size-full object-cover" />
+              </div>
 
+              {index === 0 && (
+                <span className="absolute inset-x-0 top-0 rounded-t-lg bg-ink-900/85 py-1 text-center text-[0.5625rem] font-semibold tracking-widest text-amber-300">
+                  COVER
+                </span>
+              )}
+
+              <div className="absolute inset-x-0 bottom-0 flex justify-center gap-1 rounded-b-lg bg-ink-950/75 py-1">
+                {index > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => makeCover(shot.id)}
+                    disabled={busy}
+                    aria-label={`Make photo ${index + 1} the cover`}
+                    className="rounded p-1.5 text-white active:text-amber-300"
+                  >
+                    <Icon name="sparkle" size={14} />
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => removePhoto(shot.id)}
+                  disabled={busy}
+                  aria-label={`Remove photo ${index + 1}`}
+                  className="rounded p-1.5 text-white active:text-danger"
+                >
+                  <Icon name="trash" size={14} />
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <div className="mt-3 grid grid-cols-2 gap-3">
+        <button
+          type="button"
+          onClick={() => cameraInput.current?.click()}
+          disabled={busy || photos.length >= MAX_PHOTOS}
+          className="btn btn-primary h-14"
+        >
+          <Icon name="image" size={17} />
+          Take photo
+        </button>
+        <button
+          type="button"
+          onClick={() => galleryInput.current?.click()}
+          disabled={busy || photos.length >= MAX_PHOTOS}
+          className="btn btn-quiet h-14"
+        >
+          <Icon name="copy" size={17} />
+          From gallery
+        </button>
+      </div>
+
+      <p className="mt-2 text-center text-xs text-shell-500">
+        {photos.length
+          ? `${photos.length} of ${MAX_PHOTOS} · first one is the cover`
+          : `Up to ${MAX_PHOTOS}. The first is the cover.`}
+      </p>
+
+      {/*
+        Two inputs rather than one. `capture` forces the camera *and* makes the
+        browser ignore `multiple`, so a single element cannot offer both
+        "shoot one now" and "pick several from the gallery".
+      */}
       <input
         ref={cameraInput}
         type="file"
         accept="image/*"
-        // `capture` asks the phone for the rear camera directly rather than
-        // the gallery. Desktop browsers ignore it and show a file picker.
         capture="environment"
         className="sr-only"
-        onChange={(e) => pickPhoto(e.target.files?.[0] ?? null)}
+        onChange={(e) => {
+          addPhotos(e.target.files);
+          e.target.value = "";
+        }}
+      />
+      <input
+        ref={galleryInput}
+        type="file"
+        accept="image/*"
+        multiple
+        className="sr-only"
+        onChange={(e) => {
+          addPhotos(e.target.files);
+          e.target.value = "";
+        }}
       />
 
       {/* --------------------------------------------------- typed per item */}
