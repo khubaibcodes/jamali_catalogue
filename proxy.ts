@@ -38,7 +38,12 @@ export async function proxy(request: NextRequest) {
 
   const path = request.nextUrl.pathname;
 
-  if (!user && path.startsWith("/admin")) {
+  // Match the /admin *route*, not merely the prefix. `startsWith("/admin")`
+  // also swallowed /admin.webmanifest — which broke installing the admin PWA,
+  // because the browser fetches the manifest and got a redirect to HTML.
+  const isAdminRoute = path === "/admin" || path.startsWith("/admin/");
+
+  if (!user && isAdminRoute) {
     const login = request.nextUrl.clone();
     login.pathname = "/login";
     // Send them back where they were headed once they've signed in.
