@@ -75,6 +75,23 @@ export default async function ArticlePage({ params }: Props) {
                 <Icon name="image" size={32} />
               </div>
             )}
+
+            {/*
+              Clips play here and nowhere else — a PDF cannot embed video, so
+              lib/pdf never sees them. `preload="metadata"` fetches only enough
+              for the poster frame, which matters on mobile data.
+            */}
+            {article.videos.map((video, index) => (
+              <video
+                key={video.id}
+                src={video.url}
+                controls
+                playsInline
+                preload="metadata"
+                aria-label={`${article.code}, video ${index + 1}`}
+                className="w-full rounded-lg border border-shell-200 bg-ink-950"
+              />
+            ))}
           </div>
 
           <div className="lg:sticky lg:top-8 lg:self-start">

@@ -32,6 +32,17 @@ export interface Photo {
   url: string;
 }
 
+/**
+ * A clip on the live article page. Same shape as Photo, but a distinct type so
+ * nothing can pass a video where a photo is expected — the PDF and the card
+ * renderer only accept photos, and a video would silently render nothing.
+ */
+export interface Video {
+  id: string;
+  path: string;
+  url: string;
+}
+
 export interface Product {
   id: string;
   /** Article code, e.g. JM-101. Uppercased, unique, required. */
@@ -53,6 +64,8 @@ export interface Product {
   notes: string;
   /** The first is the cover shot used on cards and thumbnails. */
   photos: Photo[];
+  /** Live site only — excluded from PDFs and exported cards. */
+  videos: Video[];
   /** Customers see this article only once it is switched on deliberately. */
   published: boolean;
   createdAt: number;
@@ -78,6 +91,7 @@ export function emptyDraft(): ProductDraft {
     status: "Available",
     notes: "",
     photos: [],
+    videos: [],
     published: false,
   };
 }

@@ -117,6 +117,8 @@ export async function importBackup(
         moq: num(raw.moq),
         notes: str(raw.notes),
         photos: [],
+        // Old backups predate video, and photos are re-uploaded below anyway.
+        videos: [],
         // Imported articles stay off the shopfront until reviewed.
         published: false,
       },

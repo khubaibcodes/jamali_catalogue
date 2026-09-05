@@ -17,6 +17,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import * as repo from "@/lib/repository";
 import { uploadPhoto } from "@/lib/photos";
+import { rejectVideo, uploadVideo } from "@/lib/videos";
 import { browserClient } from "@/lib/supabase/clients";
 import { toNumber } from "@/lib/format";
 import {
@@ -75,12 +76,15 @@ export function QuickAdd({ session }: { session: Session }) {
   // Ordered: index 0 is the cover. File and preview URL travel together so the
   // URL can always be revoked — an object URL leaks until it is.
   const [photos, setPhotos] = useState<Shot[]>([]);
+  // One clip is plenty for a rail; more is a job for the full editor.
+  const [video, setVideo] = useState<Shot | null>(null);
   const [status, setStatus] = useState<Status>({ kind: "idle" });
 
   // Two inputs, because one element cannot offer both the camera and a
   // multi-select gallery: `capture` forces the camera and suppresses multiple.
   const cameraInput = useRef<HTMLInputElement>(null);
   const galleryInput = useRef<HTMLInputElement>(null);
+  const videoInput = useRef<HTMLInputElement>(null);
   const codeInput = useRef<HTMLInputElement>(null);
 
   /*
@@ -144,10 +148,33 @@ export function QuickAdd({ session }: { session: Session }) {
       return picked ? [picked, ...prev.filter((shot) => shot.id !== id)] : prev;
     });
 
-  const clearPhotos = () => {
+  const clearMedia = () => {
     for (const url of liveUrls.current) URL.revokeObjectURL(url);
     liveUrls.current.clear();
     setPhotos([]);
+    setVideo(null);
+  };
+
+  /** Rejects an oversized or unplayable clip before anything is uploaded. */
+  const pickVideo = (file: File | null) => {
+    if (video) {
+      URL.revokeObjectURL(video.url);
+      liveUrls.current.delete(video.url);
+    }
+    if (!file) {
+      setVideo(null);
+      return;
+    }
+    const reason = rejectVideo(file);
+    if (reason) {
+      setStatus({ kind: "error", message: reason });
+      setVideo(null);
+      return;
+    }
+    const url = URL.createObjectURL(file);
+    liveUrls.current.add(url);
+    setVideo({ id: `${file.name}-${file.lastModified}`, file, url });
+    setStatus({ kind: "idle" });
   };
 
   // Release every URL when leaving the page.
@@ -212,19 +239,33 @@ export function QuickAdd({ session }: { session: Session }) {
         }
       }
 
-      const missed = photos.length - uploaded;
+      let videoFailed = false;
+      if (video) {
+        setStatus({ kind: "saving", step: "Uploading the video…" });
+        try {
+          const path = await uploadVideo(supabase, saved.code, video.file);
+          await repo.addVideoRow(supabase, saved.id, path, 0);
+        } catch {
+          // Same rule as photos: the article is saved, so one failed clip must
+          // not throw away the typing.
+          videoFailed = true;
+        }
+      }
+
+      const missed = photos.length - uploaded + (videoFailed ? 1 : 0);
 
       // Clear only what changes per article. The rack is usually the same kind.
       setCode("");
       setPrice("");
-      clearPhotos();
+      clearMedia();
       if (cameraInput.current) cameraInput.current.value = "";
       if (galleryInput.current) galleryInput.current.value = "";
+      if (videoInput.current) videoInput.current.value = "";
 
       if (missed > 0) {
         setStatus({
           kind: "error",
-          message: `${saved.code} saved, but ${missed} photo(s) failed to upload. Add them from the article list.`,
+          message: `${saved.code} saved, but ${missed} file(s) failed to upload. Add them from the article list.`,
         });
       } else {
         setStatus({ kind: "saved", code: saved.code });
@@ -355,6 +396,72 @@ export function QuickAdd({ session }: { session: Session }) {
         className="sr-only"
         onChange={(e) => {
           addPhotos(e.target.files);
+          e.target.value = "";
+        }}
+      />
+
+      {/* ------------------------------------------------------------ video */}
+      <section className="plate mt-5 p-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-sm font-semibold">Video</h2>
+            <p className="mt-0.5 text-xs text-shell-600">
+              Optional · plays on the website only, never in a PDF
+            </p>
+          </div>
+          {!video && (
+            <button
+              type="button"
+              onClick={() => videoInput.current?.click()}
+              disabled={busy}
+              className="btn btn-quiet btn-sm"
+            >
+              <Icon name="plus" size={15} />
+              Add clip
+            </button>
+          )}
+        </div>
+
+        {video && (
+          <div className="mt-3">
+            <video
+              src={video.url}
+              controls
+              playsInline
+              preload="metadata"
+              className="w-full rounded-lg bg-ink-950"
+            />
+            <div className="mt-2 flex items-center justify-between">
+              <span className="text-xs text-shell-600">
+                {(video.file.size / 1024 / 1024).toFixed(1)} MB
+              </span>
+              <button
+                type="button"
+                onClick={() => pickVideo(null)}
+                disabled={busy}
+                className="btn btn-danger btn-sm"
+              >
+                <Icon name="trash" size={14} />
+                Remove
+              </button>
+            </div>
+          </div>
+        )}
+
+        <p className="mt-2 text-xs text-shell-500">Up to 25 MB. MP4 or MOV.</p>
+      </section>
+
+      {/*
+        No `capture` here on purpose: leaving it off lets the phone offer both
+        the camera and the gallery, which is the choice people expect for video.
+      */}
+      <input
+        ref={videoInput}
+        type="file"
+        accept="video/*"
+        className="sr-only"
+        onChange={(e) => {
+          pickVideo(e.target.files?.[0] ?? null);
           e.target.value = "";
         }}
       />

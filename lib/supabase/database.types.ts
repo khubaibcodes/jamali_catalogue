@@ -100,6 +100,25 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["product_photos"]["Insert"]>;
         Relationships: [];
       };
+      /** Live-site only. Never read by lib/pdf — a PDF cannot embed video. */
+      product_videos: {
+        Row: {
+          id: string;
+          product_id: string;
+          storage_path: string;
+          position: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          product_id: string;
+          storage_path: string;
+          position?: number;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["product_videos"]["Insert"]>;
+        Relationships: [];
+      };
       profiles: {
         Row: {
           id: string;
@@ -138,6 +157,7 @@ type Tables = Database["public"]["Tables"];
 export type ProductRow = Tables["products"]["Row"];
 export type TradeRateRow = Tables["product_trade_rates"]["Row"];
 export type PhotoRow = Tables["product_photos"]["Row"];
+export type VideoRow = Tables["product_videos"]["Row"];
 export type ProfileRow = Tables["profiles"]["Row"];
 
 export type StaffRole = Database["public"]["Enums"]["staff_role"];

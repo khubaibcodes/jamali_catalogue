@@ -13,7 +13,14 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { publicUrl } from "./photos";
-import type { Database, PhotoRow, ProductRow, TradeRateRow } from "./supabase/database.types";
+import { publicVideoUrl } from "./videos";
+import type {
+  Database,
+  PhotoRow,
+  ProductRow,
+  TradeRateRow,
+  VideoRow,
+} from "./supabase/database.types";
 import type { Pieces, Product, ProductDraft, Status, Stitch } from "./types";
 
 type Client = SupabaseClient<Database>;
@@ -24,21 +31,29 @@ const PRODUCT_COLUMNS =
 /* ------------------------------------------------------------------ read */
 
 export async function fetchProducts(supabase: Client): Promise<Product[]> {
-  const [products, rates, photos] = await Promise.all([
+  const [products, rates, photos, videos] = await Promise.all([
     supabase.from("products").select(PRODUCT_COLUMNS).order("code"),
     supabase.from("product_trade_rates").select("*"),
     supabase.from("product_photos").select("*").order("position"),
+    supabase.from("product_videos").select("*").order("position"),
   ]);
 
   if (products.error) throw describe(products.error, "load the catalogue");
   // Rates failing is expected for staff — treat it as "none visible", not a fault.
   if (photos.error) throw describe(photos.error, "load the photos");
+  if (videos.error) throw describe(videos.error, "load the videos");
 
   const rateFor = new Map((rates.data ?? []).map((r) => [r.product_id, r]));
   const photosFor = groupBy(photos.data ?? [], (p) => p.product_id);
+  const videosFor = groupBy(videos.data ?? [], (v) => v.product_id);
 
   return (products.data ?? []).map((row) =>
-    toProduct(row as ProductRow, rateFor.get(row.id), photosFor.get(row.id) ?? []),
+    toProduct(
+      row as ProductRow,
+      rateFor.get(row.id),
+      photosFor.get(row.id) ?? [],
+      videosFor.get(row.id) ?? [],
+    ),
   );
 }
 
@@ -96,13 +111,12 @@ export async function saveProduct(
     rate = written.data as TradeRateRow;
   }
 
-  const photos = await supabase
-    .from("product_photos")
-    .select("*")
-    .eq("product_id", row.id)
-    .order("position");
+  const [photos, videos] = await Promise.all([
+    supabase.from("product_photos").select("*").eq("product_id", row.id).order("position"),
+    supabase.from("product_videos").select("*").eq("product_id", row.id).order("position"),
+  ]);
 
-  return toProduct(row, rate, photos.data ?? []);
+  return toProduct(row, rate, photos.data ?? [], videos.data ?? []);
 }
 
 export async function deleteProduct(supabase: Client, id: string): Promise<void> {
@@ -157,6 +171,26 @@ export async function removePhotoRow(supabase: Client, photoId: string): Promise
   if (error) throw describe(error, "remove the photo");
 }
 
+export async function addVideoRow(
+  supabase: Client,
+  productId: string,
+  storagePath: string,
+  position: number,
+): Promise<VideoRow> {
+  const { data, error } = await supabase
+    .from("product_videos")
+    .insert({ product_id: productId, storage_path: storagePath, position })
+    .select("*")
+    .single();
+  if (error) throw describe(error, "attach the video");
+  return data as VideoRow;
+}
+
+export async function removeVideoRow(supabase: Client, videoId: string): Promise<void> {
+  const { error } = await supabase.from("product_videos").delete().eq("id", videoId);
+  if (error) throw describe(error, "remove the video");
+}
+
 export async function isCodeTaken(
   supabase: Client,
   code: string,
@@ -171,7 +205,12 @@ export async function isCodeTaken(
 
 /* ---------------------------------------------------------------- mapping */
 
-function toProduct(row: ProductRow, rate: TradeRateRow | undefined, photos: PhotoRow[]): Product {
+function toProduct(
+  row: ProductRow,
+  rate: TradeRateRow | undefined,
+  photos: PhotoRow[],
+  videos: VideoRow[],
+): Product {
   return {
     id: row.id,
     code: row.code,
@@ -193,6 +232,11 @@ function toProduct(row: ProductRow, rate: TradeRateRow | undefined, photos: Phot
     notes: row.notes,
     published: row.published,
     photos: photos.map((p) => ({ id: p.id, path: p.storage_path, url: publicUrl(p.storage_path) })),
+    videos: videos.map((v) => ({
+      id: v.id,
+      path: v.storage_path,
+      url: publicVideoUrl(v.storage_path),
+    })),
     createdAt: Date.parse(row.created_at),
     updatedAt: Date.parse(row.updated_at),
   };

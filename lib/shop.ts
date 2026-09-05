@@ -9,8 +9,9 @@
  */
 
 import { publicUrl } from "./photos";
+import { publicVideoUrl } from "./videos";
 import { anonClient } from "./supabase/clients";
-import type { PhotoRow, ProductRow } from "./supabase/database.types";
+import type { PhotoRow, ProductRow, VideoRow } from "./supabase/database.types";
 import type { Photo, Pieces, Status, Stitch } from "./types";
 
 /**
@@ -26,6 +27,8 @@ const PUBLIC_COLUMNS =
   "id, code, name, fabric, category, collection, stitch, pieces, colors, design_notes, status, retail_price, updated_at";
 
 const PUBLIC_PHOTO_COLUMNS = "id, product_id, storage_path, width, height, position";
+/** `created_at` is not granted to anon — naming columns is mandatory here. */
+const PUBLIC_VIDEO_COLUMNS = "id, product_id, storage_path, position";
 
 export interface ShopArticle {
   id: string;
@@ -37,6 +40,12 @@ export interface ShopArticle {
   stitch: Stitch;
   pieces: Pieces;
   colours: string[];
+  /**
+   * Clips for the live page. Absent from every PDF: react-pdf cannot embed
+   * video, and the type is separate from Photo so it can't be passed to one
+   * by mistake.
+   */
+  videos: Photo[];
   /** Customer-facing. The internal `notes` column is never selected here. */
   designNotes: string;
   status: Status;
@@ -88,8 +97,13 @@ export async function findArticle(code: string): Promise<ShopArticle | null> {
 
   if (error || !data) return null;
 
-  const photos = await fetchPhotos(supabase, [data.id]);
-  return toArticle(data as ProductRow, photos.get(data.id) ?? []);
+  // Videos are fetched only here. The grid shows stills, so querying clips for
+  // every tile would be a wasted round trip on the busiest page.
+  const [photos, videos] = await Promise.all([
+    fetchPhotos(supabase, [data.id]),
+    fetchVideos(supabase, data.id),
+  ]);
+  return toArticle(data as ProductRow, photos.get(data.id) ?? [], videos);
 }
 
 /** Distinct categories and collections across the published catalogue. */
@@ -133,7 +147,16 @@ async function fetchPhotos(supabase: Client, productIds: string[]) {
   return grouped;
 }
 
-function toArticle(row: ProductRow, photos: PhotoRow[]): ShopArticle {
+async function fetchVideos(supabase: Client, productId: string): Promise<VideoRow[]> {
+  const { data } = await supabase
+    .from("product_videos")
+    .select(PUBLIC_VIDEO_COLUMNS)
+    .eq("product_id", productId)
+    .order("position");
+  return (data ?? []) as VideoRow[];
+}
+
+function toArticle(row: ProductRow, photos: PhotoRow[], videos: VideoRow[] = []): ShopArticle {
   return {
     id: row.id,
     code: row.code,
@@ -148,5 +171,10 @@ function toArticle(row: ProductRow, photos: PhotoRow[]): ShopArticle {
     status: row.status as Status,
     retail: row.retail_price,
     photos: photos.map((p) => ({ id: p.id, path: p.storage_path, url: publicUrl(p.storage_path) })),
+    videos: videos.map((v) => ({
+      id: v.id,
+      path: v.storage_path,
+      url: publicVideoUrl(v.storage_path),
+    })),
   };
 }
