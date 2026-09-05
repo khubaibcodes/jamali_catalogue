@@ -44,14 +44,25 @@ export interface ShopArticle {
   photos: Photo[];
 }
 
+/**
+ * One order for the shopfront and the PDF alike: collection, then article
+ * code. A catalogue whose printed sequence disagrees with the website is
+ * confusing to anyone holding both, which ruled out "recently updated first".
+ * Postgres sorts nulls and empties oddly, so it is applied in JS.
+ */
+export function catalogueOrder(a: ShopArticle, b: ShopArticle): number {
+  const byCollection = (a.collection || "￿").localeCompare(b.collection || "￿");
+  if (byCollection !== 0) return byCollection;
+  return a.code.localeCompare(b.code, "en", { numeric: true });
+}
+
 export async function listArticles(filter?: { category?: string; collection?: string }) {
   const supabase = anonClient();
 
   let query = supabase
     .from("products")
     .select(PUBLIC_COLUMNS)
-    .eq("published", true)
-    .order("updated_at", { ascending: false });
+    .eq("published", true);
 
   if (filter?.category) query = query.eq("category", filter.category);
   if (filter?.collection) query = query.eq("collection", filter.collection);
@@ -60,7 +71,9 @@ export async function listArticles(filter?: { category?: string; collection?: st
   if (error || !data?.length) return [];
 
   const photos = await fetchPhotos(supabase, data.map((row) => row.id));
-  return data.map((row) => toArticle(row as ProductRow, photos.get(row.id) ?? []));
+  return data
+    .map((row) => toArticle(row as ProductRow, photos.get(row.id) ?? []))
+    .sort(catalogueOrder);
 }
 
 export async function findArticle(code: string): Promise<ShopArticle | null> {
