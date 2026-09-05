@@ -1,0 +1,25 @@
+{
+  "name": "JAMAALI Admin",
+  "short_name": "JAMAALI Admin",
+  "description": "Add and manage Jamaali articles from your phone.",
+  "start_url": "/admin/add",
+  "scope": "/admin",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FFFFFF",
+  "theme_color": "#FFFFFF",
+  "icons": [
+    {
+      "src": "/brand/jamaali-mark.png",
+      "sizes": "807x807",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/brand/jamaali-mark.png",
+      "sizes": "807x807",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

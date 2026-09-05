@@ -9,6 +9,7 @@
  */
 
 import { useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useProducts } from "@/hooks/useProducts";
 import { useToast } from "@/hooks/useToast";
@@ -195,6 +196,13 @@ export function CatalogueManager({ session }: { session: Session }) {
               {brand.purpose}
             </p>
           </div>
+
+          {/* The phone-first capture screen. Separate from "Add" above, which
+              opens the full desk form. */}
+          <Link href="/admin/add" className="btn btn-amber btn-sm">
+            <Icon name="image" size={15} />
+            <span className="max-sm:sr-only">Quick add</span>
+          </Link>
 
           <nav aria-label="Sections" className="hidden gap-1 sm:flex">
             {NAV.map((item) => (
