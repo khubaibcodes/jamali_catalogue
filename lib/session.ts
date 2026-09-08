@@ -23,9 +23,18 @@ export async function currentSession(): Promise<Session | null> {
     .eq("id", user.id)
     .maybeSingle();
 
-  // No profile yet means the sign-up trigger hasn't run. Treat that as the
-  // least privilege we have rather than assuming anything.
-  const role = profile?.role ?? "staff";
+  /**
+   * No profile means not staff — signed in, but not a member of this shop.
+   *
+   * This used to fall back to "staff", which was the wrong half of the
+   * question: a profile row is precisely what is_staff() tests, so anyone who
+   * could create an account was treated as staff by the interface. Sign-ups
+   * are open on the Supabase project, so that was reachable by anybody. The
+   * database now refuses to hand out a profile without an invitation, and this
+   * returns null so the admin pages send the account straight back out.
+   */
+  if (!profile) return null;
+  const role = profile.role;
 
   return {
     userId: user.id,

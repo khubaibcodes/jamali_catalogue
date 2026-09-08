@@ -244,6 +244,14 @@ export function CatalogueManager({ session }: { session: Session }) {
           </div>
 
           <div className="flex items-center gap-2 border-l border-shell-200 pl-2">
+            {/* Only owners may invite, and the page redirects staff away, so
+                there is nothing to gain by showing them the door. */}
+            {session.role === "owner" && (
+              <Link href="/admin/team" className="btn btn-ghost btn-sm">
+                <Icon name="people" size={15} />
+                <span className="max-lg:sr-only">Team</span>
+              </Link>
+            )}
             <span className="hidden text-xs text-shell-600 lg:block">
               {session.email}
               <span className="ml-1 text-shell-500">({session.role})</span>

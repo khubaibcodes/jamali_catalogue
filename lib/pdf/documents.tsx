@@ -7,16 +7,31 @@
  * Lookbook layouts, built with @react-pdf/renderer.
  *
  * Designed as a print piece rather than a data dump: a cover, an index, then
- * one article per spread on a repeating template so fifty articles feel like
- * one document. Every article shows *all* its photos in saved `position`
+ * one article per page on a repeating template, so fifty articles read as one
+ * document. Every article shows *all* its photographs in saved `position`
  * order, with its full customer-facing spec beside them.
+ *
+ * How the pages are decided
+ * -------------------------
+ * None of the geometry lives here. lib/pdf/layout.ts plans the whole document
+ * first — how tall each photo is, which ones fit where, how many pages the
+ * index runs to — and this file only draws the plan. That separation is what
+ * fixed the three faults in the first version: grey bands around any photo that
+ * wasn't the assumed shape, pages left three-quarters empty, and an index whose
+ * page numbers were wrong as soon as the index itself ran past one sheet.
  *
  * Rules that hold everywhere here:
  *  - Type is Helvetica, the built-in face. Registering Montserrat would mean
  *    fetching a TTF at export time, and a failed fetch throws mid-render — not
  *    worth it when the wordmark artwork already carries the brand.
- *  - Images always use objectFit, never a raw width+height pair. objectFit
- *    preserves the aspect ratio; setting both dimensions squashes the picture.
+ *  - A photo is never given both a width and a height that disagree with its
+ *    aspect ratio. Frames are computed from the picture, so nothing is squashed
+ *    and nothing is matted against a grey box.
+ *  - Never put `wrap={false}` on a `Page`. It does not mean "don't reflow" —
+ *    it makes react-pdf shrink the sheet to its content, so every page comes
+ *    out a different physical size and the cover silently falls back to US
+ *    Letter. Content is measured against BODY here so it fits an A4 anyway,
+ *    which is what keeps the printed folios in step with the index.
  *  - Videos never appear. A PDF cannot hold one, and the live site plays them.
  *  - No phone number, WhatsApp link or email. These files travel.
  *  - Trade rates never appear. This is a customer document.
@@ -26,20 +41,40 @@ import React from "react";
 import { Document, Image, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
 import { brand, palette } from "../brand";
 import type { ShopArticle } from "../shop";
+import type { PdfPhoto, PdfReady } from "./images";
+import {
+  BODY,
+  COLUMN_GAP,
+  COLUMN_HEIGHT,
+  COVER_BAND,
+  COVER_IMAGE,
+  GUTTER,
+  HERO_COL,
+  MARGIN,
+  MOSAIC_HEAD,
+  SPEC_COL,
+  planArticle,
+  planIndex,
+  stackHeight,
+  type ArticlePlan,
+  type IndexBlock,
+  type Row,
+} from "./layout";
 
-const A4 = { width: 595.28, height: 841.89 };
-const MARGIN = 46;
-const CONTENT = A4.width - MARGIN * 2;
+/** An article whose photographs have been transcoded and measured. */
+export type PdfArticle = PdfReady<ShopArticle>;
 
-/** Photos per gallery page, as a 2×2 grid. */
-const GALLERY_PER_PAGE = 4;
-/** Thumbnails that fit beside an article's hero before spilling to a gallery. */
-const STRIP_MAX = 3;
+/**
+ * Longest design note the spec column can hold without pushing the page out of
+ * shape. Pages don't reflow here, so an unbounded note would be clipped mid
+ * sentence; trimming on a word boundary is the tidier failure.
+ */
+const NOTE_LIMIT = 300;
 
 const s = StyleSheet.create({
   /* ---------------------------------------------------------------- pages */
   page: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: palette.paper,
     paddingTop: MARGIN,
     paddingBottom: 62,
     paddingHorizontal: MARGIN,
@@ -47,17 +82,34 @@ const s = StyleSheet.create({
     color: palette.inkSoft,
     fontFamily: "Helvetica",
   },
-  bleedPage: { backgroundColor: "#FFFFFF" },
+  bleedPage: { backgroundColor: palette.paper, fontFamily: "Helvetica", padding: 0 },
 
   /* --------------------------------------------------------------- covers */
-  heroBleed: { width: A4.width, height: A4.height * 0.66, objectFit: "cover" },
-  coverBelow: { paddingHorizontal: MARGIN, paddingTop: 26, alignItems: "center" },
+  /**
+   * The cover photograph: full width, running off the top and both sides.
+   *
+   * Both cover blocks are ordinary flow children with explicit heights that
+   * add up to the sheet. An absolutely-positioned overlay would have been
+   * tidier to write, but react-pdf measures absolute children when it decides
+   * where to break, so a full-height image with a band over it counted as
+   * roughly one and a quarter pages and pushed an empty sheet after every
+   * cover.
+   */
+  coverImage: { width: "100%", height: COVER_IMAGE, objectFit: "cover" },
+  coverBand: {
+    height: COVER_BAND,
+    backgroundColor: palette.paper,
+    paddingTop: 26,
+    paddingHorizontal: MARGIN,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   wordmarkLg: { width: 190, objectFit: "contain" },
-  wordmarkMd: { width: 132, objectFit: "contain" },
+  wordmarkMd: { width: 128, objectFit: "contain" },
   wordmarkSm: { width: 74, objectFit: "contain" },
 
   /* ------------------------------------------------------------ typography */
-  display: { fontSize: 25, letterSpacing: 3, color: palette.ink },
+  display: { fontSize: 24, letterSpacing: 3, color: palette.ink },
   h2: { fontSize: 14, letterSpacing: 1.4, color: palette.ink },
   name: { fontSize: 11, color: palette.muted, marginTop: 5 },
   eyebrow: {
@@ -67,11 +119,11 @@ const s = StyleSheet.create({
     textTransform: "uppercase",
   },
   meta: { fontSize: 8.5, letterSpacing: 1.1, color: palette.muted },
-  body: { fontSize: 9, lineHeight: 1.65, color: palette.inkSoft },
+  body: { fontSize: 9, lineHeight: 1.6, color: palette.inkSoft },
 
   /* ------------------------------------------------------------- fixtures */
   rule: { height: 1.6, width: 46, backgroundColor: palette.amber, marginVertical: 12 },
-  ruleWide: { height: 0.6, backgroundColor: palette.line, marginVertical: 12 },
+  ruleWide: { height: 0.6, backgroundColor: palette.line, marginVertical: 11 },
 
   /* ---------------------------------------------------------------- specs */
   specRow: {
@@ -79,7 +131,7 @@ const s = StyleSheet.create({
     justifyContent: "space-between",
     borderBottomWidth: 0.5,
     borderBottomColor: palette.line,
-    paddingVertical: 6,
+    paddingVertical: 5.5,
   },
   specTerm: { color: palette.muted, fontSize: 8.5, letterSpacing: 0.5 },
   specValue: { color: palette.ink, fontSize: 9 },
@@ -121,6 +173,16 @@ const s = StyleSheet.create({
     justifyContent: "space-between",
   },
   footerText: { fontSize: 7, letterSpacing: 1.4, color: palette.mutedSoft },
+
+  /* ---------------------------------------------------------------- index */
+  indexRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    height: 16,
+    borderBottomWidth: 0.5,
+    borderBottomColor: palette.line,
+  },
 });
 
 /* -------------------------------------------------------------- helpers */
@@ -128,15 +190,17 @@ const s = StyleSheet.create({
 const rupees = (v: number | null) =>
   v == null ? "Price on request" : `Rs ${v.toLocaleString("en-PK")}`;
 
-const chunk = <T,>(items: T[], size: number): T[][] => {
-  const out: T[][] = [];
-  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
-  return out;
-};
-
-const titleOf = (a: ShopArticle) => [a.code, a.name].filter(Boolean).join("  ·  ");
-const metaOf = (a: ShopArticle) =>
+const titleOf = (a: PdfArticle) => [a.code, a.name].filter(Boolean).join("  ·  ");
+const metaOf = (a: PdfArticle) =>
   [a.fabric, a.pieces, a.stitch].filter(Boolean).join("   ·   ");
+
+/** Trims on a word boundary so a clipped note doesn't end mid-word. */
+function trim(text: string, limit: number): string {
+  if (text.length <= limit) return text;
+  const cut = text.slice(0, limit);
+  const lastSpace = cut.lastIndexOf(" ");
+  return `${(lastSpace > limit * 0.6 ? cut.slice(0, lastSpace) : cut).trimEnd()}…`;
+}
 
 function RunningHead({ left, right }: { left: string; right?: string }) {
   return (
@@ -147,37 +211,78 @@ function RunningHead({ left, right }: { left: string; right?: string }) {
   );
 }
 
-function Footer({ logoUrl }: { logoUrl: string }) {
+function Footer({ logoUrl, folio }: { logoUrl: string; folio: number }) {
   return (
+    // `fixed` keeps the footer out of the flow measurement. Without it
+    // react-pdf counts it towards the page height and breaks the page early.
     <View style={s.footer} fixed>
       <Image src={logoUrl} style={s.wordmarkSm} />
-      <Text style={s.footerText} render={({ pageNumber }) => String(pageNumber)} />
+      {/* The folio is passed in rather than read from react-pdf's own counter:
+          it is the same number the index was built from, so the two cannot
+          disagree. */}
+      <Text style={s.footerText}>{folio}</Text>
       <Text style={s.footerText}>{brand.website.toUpperCase()}</Text>
     </View>
   );
 }
 
-/** A photo in a fixed frame. objectFit keeps the aspect ratio intact. */
-function Frame({
-  src,
-  width,
-  height,
-  fit = "cover",
-}: {
-  src: string;
-  width: number | string;
-  height: number;
-  fit?: "cover" | "contain";
-}) {
+/**
+ * One justified row of photographs.
+ *
+ * Widths and heights arrive already solved from the aspect ratios, so each
+ * picture is drawn at its own proportions and the row reaches both margins.
+ */
+function PhotoRow({ row }: { row: Row<PdfPhoto> }) {
   return (
-    <View style={{ width, height, backgroundColor: palette.shell, overflow: "hidden" }}>
-      <Image src={src} style={{ width: "100%", height: "100%", objectFit: fit }} />
+    <View style={{ flexDirection: "row", height: row.height, justifyContent: "center" }}>
+      {row.tiles.map((tile, i) => (
+        <Image
+          key={tile.item.id}
+          src={tile.item.url}
+          style={{
+            width: tile.width,
+            height: tile.height,
+            marginRight: i < row.tiles.length - 1 ? GUTTER : 0,
+            // The dimensions already match the source, so this only absorbs
+            // sub-point rounding — it never crops anything visible.
+            objectFit: "cover",
+          }}
+        />
+      ))}
+    </View>
+  );
+}
+
+/**
+ * A stack of rows filling a known height.
+ *
+ * When the rows nearly fill the space, the slack is shared out between them so
+ * the block reaches the foot of the page. When there is a lot of slack — a page
+ * holding one last photograph — spreading it would look accidental, so the
+ * stack is centred instead. Either way there is no pool of white at the bottom.
+ */
+function Mosaic({ rows, available }: { rows: Row<PdfPhoto>[]; available: number }) {
+  const natural = stackHeight(rows);
+  const spread = rows.length > 1 && natural >= available * 0.7;
+
+  return (
+    <View
+      style={{
+        height: available,
+        justifyContent: spread ? "space-between" : "center",
+      }}
+    >
+      {rows.map((row, i) => (
+        <View key={row.tiles[0]?.item.id ?? i} style={{ marginBottom: spread ? 0 : i < rows.length - 1 ? GUTTER : 0 }}>
+          <PhotoRow row={row} />
+        </View>
+      ))}
     </View>
   );
 }
 
 /** The spec block, identical on every article so the document reads uniform. */
-function Specs({ article, showNotes = true }: { article: ShopArticle; showNotes?: boolean }) {
+function Specs({ article }: { article: PdfArticle }) {
   const rows: [string, string][] = [
     ["Article", article.code],
     ["Fabric", article.fabric || "—"],
@@ -198,7 +303,7 @@ function Specs({ article, showNotes = true }: { article: ShopArticle; showNotes?
       ))}
 
       {article.colours.length > 0 && (
-        <View style={{ marginTop: 12 }}>
+        <View style={{ marginTop: 11 }}>
           <Text style={s.eyebrow}>Colours</Text>
           <View style={s.swatchRow}>
             {article.colours.map((colour) => (
@@ -210,10 +315,12 @@ function Specs({ article, showNotes = true }: { article: ShopArticle; showNotes?
         </View>
       )}
 
-      {showNotes && article.designNotes ? (
-        <View style={{ marginTop: 12 }}>
+      {article.designNotes ? (
+        <View style={{ marginTop: 11 }}>
           <Text style={s.eyebrow}>Design notes</Text>
-          <Text style={[s.body, { marginTop: 4 }]}>{article.designNotes}</Text>
+          <Text style={[s.body, { marginTop: 4 }]}>
+            {trim(article.designNotes, NOTE_LIMIT)}
+          </Text>
         </View>
       ) : null}
 
@@ -224,39 +331,123 @@ function Specs({ article, showNotes = true }: { article: ShopArticle; showNotes?
 }
 
 /**
- * Gallery pages, 2×2. Only ever called with photos that didn't fit earlier, so
- * an article with many pictures spills onto extra pages instead of clipping.
+ * The article page: heading, then the picture column beside the spec column.
+ *
+ * The picture column is filled to its full height — hero on top, thumbnails
+ * packed underneath — so the page reaches the footer instead of trailing off
+ * into white halfway down.
  */
-function GalleryPages({
+function ArticlePage({
   article,
-  photos,
+  plan,
   logoUrl,
+  folio,
 }: {
-  article: ShopArticle;
-  photos: ShopArticle["photos"];
+  article: PdfArticle;
+  plan: ArticlePlan<PdfPhoto>;
   logoUrl: string;
+  folio: number;
 }) {
-  const cell = (CONTENT - 14) / 2;
+  /**
+   * How much of the picture column the photographs actually occupy.
+   *
+   * An article with one photograph physically cannot fill the column — a
+   * portrait at this width is about half the page, and stretching it to fit
+   * would distort the garment. So the slack is *placed* rather than left to
+   * pool above the footer: a nearly-full column is spread to both ends, and a
+   * sparse one is centred, which reads as a margin instead of as a page that
+   * ran out of content. Both columns move together so the spread stays
+   * optically balanced.
+   */
+  const filled =
+    plan.heroHeight +
+    (plan.columnRows.length ? GUTTER + stackHeight(plan.columnRows) : 0);
+  const spread = plan.columnRows.length > 0 && filled >= COLUMN_HEIGHT * 0.78;
+
+  return (
+    <Page size="A4" style={s.page}>
+      <RunningHead left={article.collection || brand.name} right={article.code} />
+
+      <View style={{ flexDirection: "row" }}>
+        {/* Picture column */}
+        <View
+          style={{
+            width: HERO_COL,
+            marginRight: COLUMN_GAP,
+            height: COLUMN_HEIGHT,
+            justifyContent: spread ? "space-between" : "center",
+          }}
+        >
+          {plan.hero ? (
+            <Image
+              src={plan.hero.url}
+              style={{ width: HERO_COL, height: plan.heroHeight, objectFit: "cover" }}
+            />
+          ) : (
+            <View style={{ width: HERO_COL, height: 240, backgroundColor: palette.shell }} />
+          )}
+
+          {plan.columnRows.length > 0 && (
+            <View style={{ marginTop: spread ? 0 : GUTTER }}>
+              {plan.columnRows.map((row, i) => (
+                <View
+                  key={row.tiles[0]?.item.id ?? i}
+                  style={{ marginBottom: i < plan.columnRows.length - 1 ? GUTTER : 0 }}
+                >
+                  <PhotoRow row={row} />
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
+
+        {/* Spec column */}
+        <View
+          style={{
+            width: SPEC_COL,
+            height: COLUMN_HEIGHT,
+            justifyContent: spread ? "flex-start" : "center",
+          }}
+        >
+          <View>
+            <Text style={s.eyebrow}>{article.collection || brand.tagline}</Text>
+            <Text style={[s.h2, { marginTop: 6 }]}>{article.code}</Text>
+            {article.name ? <Text style={s.name}>{article.name}</Text> : null}
+            <View style={s.rule} />
+            <Specs article={article} />
+          </View>
+        </View>
+      </View>
+
+      <Footer logoUrl={logoUrl} folio={folio} />
+    </Page>
+  );
+}
+
+/** Full-width pages for photographs that didn't fit beside the spec. */
+function MosaicPages({
+  article,
+  pages,
+  logoUrl,
+  firstFolio,
+}: {
+  article: PdfArticle;
+  pages: Row<PdfPhoto>[][];
+  logoUrl: string;
+  firstFolio: number;
+}) {
   return (
     <>
-      {chunk(photos, GALLERY_PER_PAGE).map((group, page) => (
-        <Page size="A4" style={s.page} key={`gallery-${page}`}>
+      {pages.map((rows, i) => (
+        <Page size="A4" style={s.page} key={`${article.id}-mosaic-${i}`}>
           <RunningHead left={article.collection || brand.name} right={article.code} />
-          <View style={{ marginTop: 16 }}>
-            <Text style={s.eyebrow}>{article.code} · further views</Text>
-            <View style={s.rule} />
+          <View style={{ marginBottom: 14 }}>
+            <Text style={s.eyebrow}>
+              {article.code} · further views{pages.length > 1 ? ` ${i + 1}/${pages.length}` : ""}
+            </Text>
           </View>
-          <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
-            {group.map((photo, i) => (
-              <View
-                key={photo.id}
-                style={{ width: cell, marginRight: i % 2 === 0 ? 14 : 0, marginBottom: 14 }}
-              >
-                <Frame src={photo.url} width={cell} height={cell * 1.25} />
-              </View>
-            ))}
-          </View>
-          <Footer logoUrl={logoUrl} />
+          <Mosaic rows={rows} available={BODY - MOSAIC_HEAD} />
+          <Footer logoUrl={logoUrl} folio={firstFolio + i} />
         </Page>
       ))}
     </>
@@ -265,28 +456,33 @@ function GalleryPages({
 
 /* ------------------------------------------------------- single article ---- */
 
+/**
+ * One article, as a two-page piece: a full-bleed cover, then the specification
+ * page, plus further-views pages only when the photographs actually need them.
+ *
+ * The cover crops the first photograph to the full sheet and the spec page
+ * shows that same photograph uncropped. That repetition is deliberate — the
+ * cover is a poster and may cut the garment, so the reader is shown the whole
+ * thing once, in proportion, overleaf.
+ */
 export function ArticleDocument({
   article,
   logoUrl,
 }: {
-  article: ShopArticle;
+  article: PdfArticle;
   logoUrl: string;
 }) {
-  const [hero, ...rest] = article.photos;
-  const strip = rest.slice(0, STRIP_MAX);
-  const overflow = rest.slice(STRIP_MAX);
-  const stripCell = (CONTENT - 2 * 10) / 3;
+  const plan = planArticle(article.photos);
 
   return (
     <Document title={titleOf(article)} author={brand.name}>
-      {/* Cover — the photograph does the talking. */}
       <Page size="A4" style={s.bleedPage}>
-        {hero ? (
-          <Image src={hero.url} style={s.heroBleed} />
+        {plan.hero ? (
+          <Image src={plan.hero.url} style={s.coverImage} />
         ) : (
-          <View style={{ ...s.heroBleed, backgroundColor: palette.shell }} />
+          <View style={[s.coverImage, { backgroundColor: palette.shell }]} />
         )}
-        <View style={s.coverBelow}>
+        <View style={s.coverBand}>
           <Image src={logoUrl} style={s.wordmarkMd} />
           <View style={s.rule} />
           <Text style={s.display}>{article.code}</Text>
@@ -295,161 +491,129 @@ export function ArticleDocument({
         </View>
       </Page>
 
-      {/* Specification — hero again at a readable size, details beside it. */}
-      <Page size="A4" style={s.page}>
-        <RunningHead left={article.collection || brand.name} right={article.code} />
+      <ArticlePage article={article} plan={plan} logoUrl={logoUrl} folio={2} />
 
-        <View style={{ marginTop: 14 }}>
-          <Text style={s.eyebrow}>Specification</Text>
-          <Text style={[s.h2, { marginTop: 6 }]}>{titleOf(article)}</Text>
-          <View style={s.rule} />
-        </View>
-
-        <View style={{ flexDirection: "row" }}>
-          <View style={{ width: CONTENT * 0.44, marginRight: 18 }}>
-            {hero && <Frame src={hero.url} width="100%" height={CONTENT * 0.44 * 1.3} fit="contain" />}
-          </View>
-          <View style={{ width: CONTENT * 0.5 }}>
-            <Specs article={article} />
-          </View>
-        </View>
-
-        {strip.length > 0 && (
-          <View style={{ marginTop: 20 }}>
-            <Text style={s.eyebrow}>Further views</Text>
-            <View style={{ flexDirection: "row", marginTop: 8 }}>
-              {strip.map((photo, i) => (
-                <View key={photo.id} style={{ marginRight: i < strip.length - 1 ? 10 : 0 }}>
-                  <Frame src={photo.url} width={stripCell} height={stripCell * 1.25} />
-                </View>
-              ))}
-            </View>
-          </View>
-        )}
-
-        <Footer logoUrl={logoUrl} />
-      </Page>
-
-      <GalleryPages article={article} photos={overflow} logoUrl={logoUrl} />
+      <MosaicPages
+        article={article}
+        pages={plan.overflowPages}
+        logoUrl={logoUrl}
+        firstFolio={3}
+      />
     </Document>
   );
 }
 
 /* ---------------------------------------------------------- full catalogue */
 
+/**
+ * The whole published catalogue.
+ *
+ * Built in two passes, and it has to be in this order: the index cannot cite a
+ * page number until it knows how many pages the index itself runs to. So the
+ * index is laid out first to learn its own length, and only then are the
+ * article page numbers counted and written back into it.
+ */
 export function CatalogueDocument({
   articles,
   logoUrl,
 }: {
-  articles: ShopArticle[];
+  articles: PdfArticle[];
   logoUrl: string;
 }) {
   const issued = new Date().toLocaleDateString("en-GB", { month: "long", year: "numeric" });
 
-  const withPages = paginate(articles);
+  const plans = articles.map((article) => ({ article, plan: planArticle(article.photos) }));
 
-  const stripCell = (CONTENT * 0.46 - 2 * 8) / 3;
+  // Pass one — how long is the index?
+  const groups = groupByCollection(articles);
+  const { pages: indexPages } = planIndex(groups);
+
+  // Pass two — where does each article land, now that the front matter is known?
+  const firstArticleFolio = 1 + indexPages.length + 1;
+  const folioFor = new Map<string, number>();
+  let cursor = firstArticleFolio;
+  for (const { article, plan } of plans) {
+    folioFor.set(article.id, cursor);
+    cursor += plan.pageCount;
+  }
+
+  const numbered: IndexBlock<PdfArticle>[][] = indexPages.map((blocks) =>
+    blocks.map((block) => ({
+      ...block,
+      entries: block.entries.map((entry) => ({
+        ...entry,
+        startPage: folioFor.get(entry.article.id) ?? 0,
+      })),
+    })),
+  );
+
+  const coverPhoto = articles.find((a) => a.photos.length > 0)?.photos[0];
 
   return (
     <Document title={`${brand.name} Catalogue — ${issued}`} author={brand.name}>
-      {/* Cover */}
-      <Page size="A4" style={[s.page, { justifyContent: "center", alignItems: "center" }]}>
-        <Image src={logoUrl} style={s.wordmarkLg} />
-        <View style={s.rule} />
-        <Text style={{ fontSize: 15, letterSpacing: 6, color: palette.ink, marginTop: 4 }}>
-          CATALOGUE
-        </Text>
-        <Text style={[s.meta, { marginTop: 14 }]}>{issued.toUpperCase()}</Text>
-        <Text style={[s.footerText, { marginTop: 40 }]}>
-          {articles.length} {articles.length === 1 ? "ARTICLE" : "ARTICLES"}
-        </Text>
-      </Page>
-
-      {/* Index, grouped by collection */}
-      <Page size="A4" style={s.page}>
-        <RunningHead left={brand.name} right="Index" />
-        <View style={{ marginTop: 14 }}>
-          <Text style={s.eyebrow}>Index</Text>
+      {/* Cover — the strongest photograph in the book, run to the edges. */}
+      <Page size="A4" style={s.bleedPage}>
+        {coverPhoto ? (
+          <Image src={coverPhoto.url} style={s.coverImage} />
+        ) : (
+          <View style={[s.coverImage, { backgroundColor: palette.shell }]} />
+        )}
+        <View style={s.coverBand}>
+          <Image src={logoUrl} style={s.wordmarkLg} />
           <View style={s.rule} />
+          <Text style={{ fontSize: 14, letterSpacing: 6, color: palette.ink }}>CATALOGUE</Text>
+          <Text style={[s.meta, { marginTop: 12 }]}>{issued.toUpperCase()}</Text>
+          <Text style={[s.footerText, { marginTop: 10 }]}>
+            {articles.length} {articles.length === 1 ? "ARTICLE" : "ARTICLES"}
+          </Text>
         </View>
-
-        {groupByCollection(withPages).map(([collection, entries]) => (
-          <View key={collection} style={{ marginBottom: 14 }} wrap={false}>
-            <Text style={[s.eyebrow, { color: palette.amberDeep }]}>{collection}</Text>
-            {entries.map(({ article, startPage }) => (
-              <View
-                key={article.id}
-                style={{
-                  flexDirection: "row",
-                  justifyContent: "space-between",
-                  paddingVertical: 4,
-                  borderBottomWidth: 0.5,
-                  borderBottomColor: palette.line,
-                }}
-              >
-                <Text style={{ fontSize: 9, color: palette.ink }}>
-                  {article.code}
-                  {article.name ? `   ${article.name}` : ""}
-                </Text>
-                <Text style={{ fontSize: 8.5, color: palette.muted }}>{startPage}</Text>
-              </View>
-            ))}
-          </View>
-        ))}
-        <Footer logoUrl={logoUrl} />
       </Page>
 
-      {/* One article per page, same template throughout. */}
-      {withPages.map(({ article }) => {
-        const [hero, ...rest] = article.photos;
-        const strip = rest.slice(0, STRIP_MAX);
-        const overflow = rest.slice(STRIP_MAX);
+      {/* Index — as many sheets as it needs, page numbers already resolved. */}
+      {numbered.map((blocks, page) => (
+        <Page size="A4" style={s.page} key={`index-${page}`}>
+          <RunningHead left={brand.name} right="Index" />
+          <View style={{ marginBottom: 10 }}>
+            <Text style={s.eyebrow}>
+              Index{numbered.length > 1 ? ` ${page + 1}/${numbered.length}` : ""}
+            </Text>
+            <View style={s.rule} />
+          </View>
 
+          {blocks.map((block, i) => (
+            <View key={`${block.collection}-${i}`} style={{ marginTop: i === 0 ? 0 : 12 }}>
+              <Text style={[s.eyebrow, { color: palette.amberDeep }]}>
+                {block.collection}
+                {block.continued ? " (continued)" : ""}
+              </Text>
+              {block.entries.map(({ article, startPage }) => (
+                <View key={article.id} style={s.indexRow}>
+                  <Text style={{ fontSize: 9, color: palette.ink }}>
+                    {article.code}
+                    {article.name ? `   ${article.name}` : ""}
+                  </Text>
+                  <Text style={{ fontSize: 8.5, color: palette.muted }}>{startPage}</Text>
+                </View>
+              ))}
+            </View>
+          ))}
+
+          <Footer logoUrl={logoUrl} folio={page + 2} />
+        </Page>
+      ))}
+
+      {/* The articles themselves, one template throughout. */}
+      {plans.map(({ article, plan }) => {
+        const folio = folioFor.get(article.id) ?? 0;
         return (
           <React.Fragment key={article.id}>
-            <Page size="A4" style={s.page}>
-              <RunningHead left={article.collection || brand.name} right={article.code} />
-
-              <View style={{ marginTop: 14, flexDirection: "row" }}>
-                <View style={{ width: CONTENT * 0.46, marginRight: 20 }}>
-                  {hero ? (
-                    <Frame src={hero.url} width="100%" height={CONTENT * 0.46 * 1.3} />
-                  ) : (
-                    <View
-                      style={{
-                        height: CONTENT * 0.46 * 1.3,
-                        backgroundColor: palette.shell,
-                      }}
-                    />
-                  )}
-
-                  {strip.length > 0 && (
-                    <View style={{ flexDirection: "row", marginTop: 8 }}>
-                      {strip.map((photo, i) => (
-                        <View
-                          key={photo.id}
-                          style={{ marginRight: i < strip.length - 1 ? 8 : 0 }}
-                        >
-                          <Frame src={photo.url} width={stripCell} height={stripCell * 1.25} />
-                        </View>
-                      ))}
-                    </View>
-                  )}
-                </View>
-
-                <View style={{ width: CONTENT * 0.48 }}>
-                  <Text style={s.eyebrow}>{article.collection || "Collection"}</Text>
-                  <Text style={[s.h2, { marginTop: 6 }]}>{article.code}</Text>
-                  {article.name ? <Text style={s.name}>{article.name}</Text> : null}
-                  <View style={s.rule} />
-                  <Specs article={article} />
-                </View>
-              </View>
-
-              <Footer logoUrl={logoUrl} />
-            </Page>
-
-            <GalleryPages article={article} photos={overflow} logoUrl={logoUrl} />
+            <ArticlePage article={article} plan={plan} logoUrl={logoUrl} folio={folio} />
+            <MosaicPages
+              article={article}
+              pages={plan.overflowPages}
+              logoUrl={logoUrl}
+              firstFolio={folio + 1}
+            />
           </React.Fragment>
         );
       })}
@@ -457,37 +621,13 @@ export function CatalogueDocument({
   );
 }
 
-/**
- * Works out which page each article starts on, so the index points somewhere
- * real. Cover and index take the first two sheets; after that an article costs
- * one page plus a gallery page for every four photos that didn't fit beside
- * its hero. Getting this arithmetic wrong is the classic catalogue bug.
- *
- * Kept outside the component: it accumulates, and accumulating during render
- * is exactly what the React Compiler forbids.
- */
-function paginate(
-  articles: ShopArticle[],
-): { article: ShopArticle; startPage: number }[] {
-  let cursor = 3;
-  const out: { article: ShopArticle; startPage: number }[] = [];
+function groupByCollection(articles: PdfArticle[]): [string, PdfArticle[]][] {
+  const groups = new Map<string, PdfArticle[]>();
   for (const article of articles) {
-    out.push({ article, startPage: cursor });
-    const overflow = Math.max(0, article.photos.length - 1 - STRIP_MAX);
-    cursor += 1 + Math.ceil(overflow / GALLERY_PER_PAGE);
-  }
-  return out;
-}
-
-function groupByCollection(
-  entries: { article: ShopArticle; startPage: number }[],
-): [string, { article: ShopArticle; startPage: number }[]][] {
-  const groups = new Map<string, { article: ShopArticle; startPage: number }[]>();
-  for (const entry of entries) {
-    const key = entry.article.collection?.trim() || "Other";
+    const key = article.collection?.trim() || "Other";
     const bucket = groups.get(key);
-    if (bucket) bucket.push(entry);
-    else groups.set(key, [entry]);
+    if (bucket) bucket.push(article);
+    else groups.set(key, [article]);
   }
   return [...groups.entries()];
 }

@@ -119,6 +119,44 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["product_videos"]["Insert"]>;
         Relationships: [];
       };
+      /**
+       * Invitations to staff accounts. Owner-only: a staff session reads zero
+       * rows, the same way it does for trade rates.
+       *
+       * `token` is a lookup key, not a credential — an invitation is only ever
+       * redeemed for a sign-up whose email matches `email`, so a leaked link is
+       * useless to anyone who cannot receive mail at that address.
+       */
+      staff_invites: {
+        Row: {
+          id: string;
+          email: string;
+          role: Database["public"]["Enums"]["staff_role"];
+          full_name: string;
+          token: string;
+          invited_by: string | null;
+          created_at: string;
+          expires_at: string;
+          accepted_at: string | null;
+          accepted_by: string | null;
+          revoked_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          email: string;
+          role?: Database["public"]["Enums"]["staff_role"];
+          full_name?: string;
+          token?: string;
+          invited_by?: string | null;
+          created_at?: string;
+          expires_at?: string;
+          accepted_at?: string | null;
+          accepted_by?: string | null;
+          revoked_at?: string | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["staff_invites"]["Insert"]>;
+        Relationships: [];
+      };
       profiles: {
         Row: {
           id: string;
@@ -141,6 +179,21 @@ export type Database = {
       current_staff_role: { Args: never; Returns: Database["public"]["Enums"]["staff_role"] };
       is_owner: { Args: never; Returns: boolean };
       is_staff: { Args: never; Returns: boolean };
+      /** Public: what the join page may show before anyone signs in. */
+      invite_preview: {
+        Args: { p_token: string };
+        Returns: {
+          email: string;
+          role: Database["public"]["Enums"]["staff_role"];
+          full_name: string;
+          expires_at: string;
+        }[];
+      };
+      /** For an invitee who already had an account before being invited. */
+      redeem_staff_invite: {
+        Args: { p_token: string };
+        Returns: Database["public"]["Enums"]["staff_role"];
+      };
     };
     Enums: {
       article_status: "Available" | "New" | "Low stock" | "Sold out";
@@ -159,6 +212,7 @@ export type TradeRateRow = Tables["product_trade_rates"]["Row"];
 export type PhotoRow = Tables["product_photos"]["Row"];
 export type VideoRow = Tables["product_videos"]["Row"];
 export type ProfileRow = Tables["profiles"]["Row"];
+export type InviteRow = Tables["staff_invites"]["Row"];
 
 export type StaffRole = Database["public"]["Enums"]["staff_role"];
 export type StitchState = Database["public"]["Enums"]["stitch_state"];

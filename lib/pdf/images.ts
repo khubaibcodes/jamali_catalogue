@@ -18,7 +18,21 @@
 const MAX_EDGE = 1600;
 const QUALITY = 0.85;
 
-const cache = new Map<string, Promise<string | null>>();
+/**
+ * A photo ready to place: an embeddable JPEG and the shape it actually is.
+ *
+ * The aspect ratio is the reason this type exists. The layout used to guess a
+ * shape and mat every picture that disagreed against a grey box; now the frame
+ * is derived from the picture. Since this function already decodes the image to
+ * transcode it, the true dimensions are free — they were simply being discarded.
+ */
+export interface EmbeddedImage {
+  dataUrl: string;
+  /** width ÷ height. Portrait is < 1. */
+  aspect: number;
+}
+
+const cache = new Map<string, Promise<EmbeddedImage | null>>();
 
 function load(url: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -33,11 +47,11 @@ function load(url: string): Promise<HTMLImageElement> {
 }
 
 /**
- * Fetches a photo and returns a JPEG data URL react-pdf can embed.
+ * Fetches a photo and returns a JPEG react-pdf can embed, with its true shape.
  * Returns null when the image cannot be read, so one broken file costs its own
  * picture rather than the whole document.
  */
-export function toPdfImage(url: string): Promise<string | null> {
+export function toPdfImage(url: string): Promise<EmbeddedImage | null> {
   let entry = cache.get(url);
   if (entry) return entry;
 
@@ -61,7 +75,7 @@ export function toPdfImage(url: string): Promise<string | null> {
       ctx.imageSmoothingQuality = "high";
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
-      return canvas.toDataURL("image/jpeg", QUALITY);
+      return { dataUrl: canvas.toDataURL("image/jpeg", QUALITY), aspect: w / h };
     } catch {
       return null;
     }
@@ -71,28 +85,49 @@ export function toPdfImage(url: string): Promise<string | null> {
   return entry;
 }
 
-type WithPhotos = { photos: { id: string; path: string; url: string }[] };
+interface SourcePhoto {
+  id: string;
+  path: string;
+  url: string;
+}
+
+type WithPhotos = { photos: SourcePhoto[] };
+
+/** A photo the layout can measure: the source fields plus its true shape. */
+export type PdfPhoto = SourcePhoto & { aspect: number };
+
+/** An article whose photos are all embeddable and measured. */
+export type PdfReady<T extends WithPhotos> = Omit<T, "photos"> & { photos: PdfPhoto[] };
 
 /**
- * Rewrites every photo URL on a set of articles to an embeddable data URL.
+ * Rewrites every photo on a set of articles into an embeddable, measured one.
  * Photos that fail to convert are dropped, so the PDF still builds.
  *
  * Conversions run in parallel but are deduplicated by the cache above, which
- * matters for the full catalogue: the same cover appears in the grid and again
+ * matters for the full catalogue: the same cover appears in the index and again
  * on its own page.
+ *
+ * The return type is deliberately a different shape from the input. The layout
+ * cannot place a photo whose proportions it doesn't know, and making that a
+ * type error is cheaper than discovering it as a grey box in a printed page.
  */
 export async function withEmbeddablePhotos<T extends WithPhotos>(
   articles: T[],
-): Promise<T[]> {
+): Promise<PdfReady<T>[]> {
   return Promise.all(
     articles.map(async (article) => {
       const photos = await Promise.all(
         article.photos.map(async (photo) => {
-          const url = await toPdfImage(photo.url);
-          return url ? { ...photo, url } : null;
+          const embedded = await toPdfImage(photo.url);
+          return embedded
+            ? { ...photo, url: embedded.dataUrl, aspect: embedded.aspect }
+            : null;
         }),
       );
-      return { ...article, photos: photos.filter((p) => p !== null) };
+      return {
+        ...article,
+        photos: photos.filter((p): p is PdfPhoto => p !== null),
+      };
     }),
   );
 }
