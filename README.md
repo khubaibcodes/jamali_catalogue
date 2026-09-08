@@ -43,11 +43,33 @@ npm run typecheck
 
 ---
 
+## Who can get in
+
+Access is by **invitation only**. Signing up is not enough: a `profiles` row is
+what `is_staff()` tests, and one is created only for a sign-up whose email
+matches a live invitation. An uninvited account can sign in and see nothing —
+every policy denies it, and `/admin` sends it back to the login page.
+
+> This has not always been true. Until migration `0006`, the sign-up trigger
+> gave a profile to *every* new auth user, and sign-ups are open on the Supabase
+> project by default — so anyone who could reach the auth endpoint with the
+> publishable key was handed a staff account. If you are restoring an older
+> database, apply `0006` before opening it up.
+
+Once there is an owner, invite people from **/admin/team**: enter their address,
+copy the link, and send it to them however you normally would. They set their own
+password at `/join/<token>`. Nothing is emailed by the app — it holds no
+service-role key and no mail credentials, so it does not pretend to send
+anything it cannot.
+
+An invitation is bound to the address it was issued for, so a forwarded link is
+useless to anyone who cannot receive mail there. It expires after 14 days and
+can be cancelled at any time before it is used.
+
 ## Creating the first owner
 
-There is **no public sign-up**, and everyone who signs up becomes `staff` by
-default — deliberately, so a new account can never grant itself rate access.
-The first owner therefore has to be seeded.
+The first owner has to be seeded by hand — there is nobody to issue the
+invitation yet.
 
 1. Supabase dashboard → **Authentication → Users → Add user**, tick
    *auto-confirm*.
